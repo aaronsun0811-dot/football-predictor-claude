@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Periodic /upcoming snapshot for the football-predictor-claude project.
+
+        Why: the in-process APScheduler only fires while the FastAPI server is
+        running. If the server is down (most of the time, for a personal
+        project), audit history starves and we can't reconcile predictions
+        against actuals later. This launchd job runs the same snapshot logic
+        out-of-process, independent of the web server.
+
+        Schedule: every 6 hours (00:00, 06:00, 12:00, 18:00 local time).
+        Equivalent to the in-process scheduler's "9,15,21,3" config in spirit,
+        though offset slightly to land on round wall-clock hours.
+
+        Install:
+            cp deploy/com.aaronsun.football-predictor-claude.snapshot.plist \
+               ~/Library/LaunchAgents/
+            launchctl load ~/Library/LaunchAgents/com.aaronsun.football-predictor-claude.snapshot.plist
+
+        Verify:
+            launchctl list | grep football-predictor-claude
+            tail -f /tmp/football-predictor-claude.snapshot.log
+
+        Uninstall:
+            launchctl unload ~/Library/LaunchAgents/com.aaronsun.football-predictor-claude.snapshot.plist
+            rm ~/Library/LaunchAgents/com.aaronsun.football-predictor-claude.snapshot.plist
+    -->
+    <key>Label</key>
+    <string>com.aaronsun.football-predictor-claude.snapshot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/seek/Documents/football-predictor-claude/.venv/bin/python</string>
+        <string>predict.py</string>
+        <string>snapshot-upcoming</string>
+        <string>--quiet</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/seek/Documents/football-predictor-claude</string>
+
+    <!-- Fire at 00:00, 06:00, 12:00, 18:00 local time. Four shots a day is
+         enough to keep the audit pipeline well-fed; more would just rewrite
+         the same predictions during cache-hit windows. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key><integer>0</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>6</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>12</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>18</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+    </array>
+
+    <!-- Also fire once at load time so we don't wait until midnight for the
+         first snapshot. Useful when you cold-install on a quiet weekday. -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/football-predictor-claude.snapshot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/football-predictor-claude.snapshot.log</string>
+
+    <!-- Don't let a failed snapshot retry-storm; one shot per scheduled time
+         is fine. If TSDB is down we'll catch up on the next 6h tick. -->
+    <key>ThrottleInterval</key>
+    <integer>3600</integer>
+</dict>
+</plist>

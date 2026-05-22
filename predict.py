@@ -1903,6 +1903,61 @@ def backfill_results_cmd(
     typer.echo(json.dumps(report, ensure_ascii=False, indent=2, default=str))
 
 
+@cli.command("snapshot-upcoming")
+def snapshot_upcoming_cmd(
+    days_ahead: int = typer.Option(
+        None,
+        help="Override SETTINGS.upcoming_snapshot_days_ahead. Default uses the env-configured value (14).",
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only print the row-count summary."),
+) -> None:
+    """Force one /upcoming snapshot from the command line.
+
+    Why this exists: the in-process APScheduler runs inside the serve process,
+    so when the FastAPI server isn't running, NO snapshots fire and the audit
+    history starves. This CLI is the same code path the scheduler calls — but
+    it can be triggered by launchd/cron independently of whether the web
+    server is up. Re-uses the on-disk caches, so back-to-back calls are cheap.
+
+    Wire it into launchd (`~/Library/LaunchAgents/`) to get reliable cron-style
+    snapshots that survive server restarts and crashes.
+    """
+    from data.history_store import SHARD_DIR  # noqa: PLC0415
+
+    registry = LeagueRegistry()
+    league_keys = sorted({league.key for league in registry.all()})
+    days = days_ahead if days_ahead is not None else SETTINGS.upcoming_snapshot_days_ahead
+
+    if not quiet:
+        typer.echo(f"snapshot-upcoming: leagues={len(league_keys)} days_ahead={days}", err=True)
+
+    # Mirrors _scheduled_upcoming_snapshot but with progress + return code.
+    try:
+        payload = _compute_upcoming_payload(
+            league_keys=league_keys,
+            days_ahead=days,
+            include_predictions=True,
+        )
+    except Exception as exc:  # noqa: BLE001 — return non-zero so cron sees failure
+        typer.echo(f"snapshot-upcoming FAILED: {type(exc).__name__}: {exc}", err=True)
+        raise typer.Exit(1)
+
+    fixture_count = payload.get("fixture_count", 0)
+    typer.echo(
+        json.dumps(
+            {
+                "ok": True,
+                "fixture_count": fixture_count,
+                "days_ahead": days,
+                "leagues_queried": len(league_keys),
+                "history_dir": str(SHARD_DIR),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
 @cli.command("coverage")
 def coverage_cmd(
     db_path: Path = typer.Option(DEFAULT_DB_PATH, help="SQLite database path."),
