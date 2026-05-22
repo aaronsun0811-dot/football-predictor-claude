@@ -6,10 +6,10 @@ Team-level football match predictor. Dixon-Coles bivariate Poisson with Elo
 prior correction, fed by free public data sources. The web UI is fully
 bilingual (English / 中文). Three surfaces:
 
-- **Web UI** — `python predict.py serve` → open <http://localhost:8000>
+- **Web UI** — `python predict.py serve` → open <http://localhost:8001>
   (single-page app: match predict / World Cup / leagues / about; no build step)
 - **CLI** — `python predict.py predict "Arsenal" "Chelsea" --league premier_league`
-- **HTTP API** — `python predict.py serve` exposes FastAPI on :8000
+- **HTTP API** — `python predict.py serve` exposes FastAPI on :8001
 
 The current prediction model is team-level. Player tables are included so paid
 feeds can store squad age, minutes, starts, goals, assists, and ratings, but
@@ -159,10 +159,10 @@ Names must match `eloratings.net` spellings ("United States", "South Korea").
 ## Run as a service
 
 ```bash
-python predict.py serve --port 8000
+python predict.py serve --port 8001
 ```
 
-Open <http://localhost:8000> for the web UI, or hit the JSON endpoints directly:
+Open <http://localhost:8001> for the web UI, or hit the JSON endpoints directly:
 
 | Method | Path                          | Purpose                                    |
 |--------|-------------------------------|--------------------------------------------|

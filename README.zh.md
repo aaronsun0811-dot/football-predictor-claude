@@ -5,10 +5,10 @@
 球队级足球比赛预测器。Dixon-Coles 双变量泊松模型 + Elo 修正先验，
 基于免费公开数据源。Web UI 完整支持双语（中文 / English）。三种用法：
 
-- **Web UI** — `python predict.py serve` → 打开 <http://localhost:8000>
+- **Web UI** — `python predict.py serve` → 打开 <http://localhost:8001>
   （单页应用：比赛预测 / 世界杯 / 联赛 / 关于；无需 build）
 - **CLI** — `python predict.py predict "Arsenal" "Chelsea" --league 英超`
-- **HTTP API** — `python predict.py serve` 在 :8000 暴露 FastAPI
+- **HTTP API** — `python predict.py serve` 在 :8001 暴露 FastAPI
 
 当前预测模型停在球队层。球员表已经建好，付费数据源能往里塞阵容年龄、上场分钟、
 首发、进球、助攻、评分，但首版生产模型故意停留在球队级 —— 因为校准更容易，
@@ -151,10 +151,10 @@ python worldcup.py --groups data/wc2026_draw.json
 ## 跑成服务
 
 ```bash
-python predict.py serve --port 8000
+python predict.py serve --port 8001
 ```
 
-打开 <http://localhost:8000> 看 Web UI，或者直接打 JSON 接口：
+打开 <http://localhost:8001> 看 Web UI，或者直接打 JSON 接口：
 
 | Method | Path                          | 用途                                       |
 |--------|-------------------------------|--------------------------------------------|
