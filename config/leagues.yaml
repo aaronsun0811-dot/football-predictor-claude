@@ -1,0 +1,484 @@
+# League registry.
+#
+# Each entry maps a logical league to its data sources.
+#   football_data_code: code used by https://www.football-data.co.uk/ CSV exports
+#     (None when the league is not covered by football-data.co.uk).
+#   clubelo: whether http://clubelo.com/ tracks teams in this league.
+#   fbref_id: numeric competition id on FBref (used for xG enrichment).
+#   tier: ranks coverage quality. 1 = full (Elo + xG + results),
+#         2 = Elo + results, 3 = results only.
+#   note: caveat surfaced in CLI output.
+
+leagues:
+  # --- England ---
+  premier_league:
+    name: Premier League
+    country: ENG
+    football_data_code: E0
+    api_football_id: 39
+    clubelo: true
+    fbref_id: 9
+    tier: 1
+  championship:
+    name: EFL Championship
+    country: ENG
+    football_data_code: E1
+    api_football_id: 40
+    clubelo: true
+    fbref_id: 10
+    tier: 1
+  league_one:
+    name: EFL League One
+    country: ENG
+    football_data_code: E2
+    api_football_id: 41
+    clubelo: true
+    fbref_id: 15
+    tier: 2
+
+  # --- Spain ---
+  la_liga:
+    name: La Liga
+    country: ESP
+    football_data_code: SP1
+    api_football_id: 140
+    clubelo: true
+    fbref_id: 12
+    tier: 1
+  segunda:
+    name: La Liga 2 (Segunda)
+    country: ESP
+    football_data_code: SP2
+    api_football_id: 141
+    clubelo: true
+    fbref_id: 17
+    tier: 1
+
+  # --- Italy ---
+  serie_a:
+    name: Serie A
+    country: ITA
+    football_data_code: I1
+    api_football_id: 135
+    clubelo: true
+    fbref_id: 11
+    tier: 1
+  serie_b:
+    name: Serie B
+    country: ITA
+    football_data_code: I2
+    api_football_id: 136
+    clubelo: true
+    fbref_id: 18
+    tier: 1
+
+  # --- Portugal ---
+  primeira:
+    name: Primeira Liga
+    country: POR
+    football_data_code: P1
+    api_football_id: 94
+    clubelo: true
+    fbref_id: 32
+    tier: 1
+  liga_portugal_2:
+    name: Liga Portugal 2
+    country: POR
+    football_data_code: null
+    api_football_id: 95
+    clubelo: true
+    fbref_id: null
+    tier: 3
+    note: "No football-data.co.uk feed; results must be sourced elsewhere."
+
+  # --- Netherlands ---
+  eredivisie:
+    name: Eredivisie
+    country: NED
+    football_data_code: N1
+    api_football_id: 88
+    clubelo: true
+    fbref_id: 23
+    tier: 1
+
+  # --- Germany ---
+  bundesliga:
+    name: Bundesliga
+    country: GER
+    football_data_code: D1
+    api_football_id: 78
+    clubelo: true
+    fbref_id: 20
+    tier: 1
+  bundesliga_2:
+    name: 2. Bundesliga
+    country: GER
+    football_data_code: D2
+    api_football_id: 79
+    clubelo: true
+    fbref_id: 33
+    tier: 1
+
+  # --- France ---
+  ligue_1:
+    name: Ligue 1
+    country: FRA
+    football_data_code: F1
+    api_football_id: 61
+    clubelo: true
+    fbref_id: 13
+    tier: 1
+  ligue_2:
+    name: Ligue 2
+    country: FRA
+    football_data_code: F2
+    api_football_id: 62
+    clubelo: true
+    fbref_id: 60
+    tier: 1
+
+  # --- Belgium ---
+  belgian_pro:
+    name: Belgian Pro League
+    country: BEL
+    football_data_code: B1
+    api_football_id: 144
+    clubelo: true
+    fbref_id: 37
+    tier: 1
+
+  # --- Saudi Arabia ---
+  # Note: "沙特" and "沙特职业足球联赛" both refer to the Saudi Pro League.
+  saudi_pro:
+    name: Saudi Pro League
+    country: KSA
+    football_data_code: null
+    api_football_id: 307
+    clubelo: false
+    fbref_id: 70
+    tier: 3
+    note: "No ClubElo coverage. Strength estimated from goals only."
+
+  # --- Asia ---
+  j1:
+    name: J1 League
+    country: JPN
+    football_data_code: null
+    api_football_id: 98
+    clubelo: false
+    fbref_id: 25
+    tier: 3
+    note: "No ClubElo. Spring-to-autumn season."
+  k1:
+    name: K League 1
+    country: KOR
+    football_data_code: null
+    api_football_id: 292
+    clubelo: false
+    fbref_id: 55
+    tier: 3
+    note: "No ClubElo."
+  chinese_super_league:
+    name: Chinese Super League
+    country: CHN
+    football_data_code: null
+    api_football_id: 169
+    clubelo: false
+    fbref_id: 74
+    tier: 3
+    note: "No football-data.co.uk or ClubElo coverage. Verify API-Football id with /leagues?country=China when an API key is configured."
+
+  # --- Americas ---
+  mls:
+    name: Major League Soccer
+    country: USA
+    football_data_code: null
+    api_football_id: 253
+    clubelo: false
+    fbref_id: 22
+    tier: 3
+    note: "No ClubElo. Conference structure; treat as single league."
+  brasileirao:
+    name: Brasileirão Série A
+    country: BRA
+    football_data_code: null
+    api_football_id: 71
+    clubelo: false
+    fbref_id: 24
+    tier: 3
+    note: "Calendar-year season."
+  primera_argentina:
+    name: Liga Profesional (Argentina)
+    country: ARG
+    football_data_code: null
+    api_football_id: 128
+    clubelo: false
+    fbref_id: 21
+    tier: 3
+  liga_mx:
+    name: Liga MX
+    country: MEX
+    football_data_code: null
+    api_football_id: 262
+    clubelo: false
+    fbref_id: 31
+    tier: 3
+    note: "Apertura/Clausura split season."
+
+  # ============================================================
+  # Continental club competitions
+  # ============================================================
+  # These have no historical match feed in football-data.co.uk. Predictions
+  # use cross-league fits: when both teams already appear in our domestic
+  # data (which is true for most UCL participants), Dixon-Coles can predict
+  # the head-to-head with fitting pool = all matches from the same continent.
+  # tier: 4 marks "predictable but no native data".
+  champions_league:
+    name: UEFA Champions League
+    country: EUR
+    football_data_code: null
+    api_football_id: 2
+    clubelo: false
+    fbref_id: 8
+    tier: 4
+    continent: europe
+    competition_type: club
+    knockout: true
+    note: "Cross-league prediction from European domestic data. Knockout draws split as advancement."
+  europa_league:
+    name: UEFA Europa League
+    country: EUR
+    football_data_code: null
+    api_football_id: 3
+    clubelo: false
+    fbref_id: 19
+    tier: 4
+    continent: europe
+    competition_type: club
+    knockout: true
+    note: "Cross-league prediction from European domestic data."
+  conference_league:
+    name: UEFA Conference League
+    country: EUR
+    football_data_code: null
+    api_football_id: 848
+    clubelo: false
+    fbref_id: 882
+    tier: 4
+    continent: europe
+    competition_type: club
+    knockout: true
+    note: "Cross-league prediction from European domestic data."
+  copa_libertadores:
+    name: Copa Libertadores
+    country: SAM
+    football_data_code: null
+    api_football_id: 13
+    clubelo: false
+    fbref_id: 14
+    tier: 4
+    continent: south_america
+    competition_type: club
+    knockout: true
+    note: "Cross-league prediction from Brasileirão + Liga Profesional. Sparse coverage of mid-tier clubs."
+  copa_sudamericana:
+    name: Copa Sudamericana
+    country: SAM
+    football_data_code: null
+    api_football_id: 11
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: south_america
+    competition_type: club
+    knockout: true
+    note: "Secondary South American club competition."
+  afc_champions_league:
+    name: AFC Champions League Elite
+    country: ASI
+    football_data_code: null
+    api_football_id: 17
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: asia
+    competition_type: club
+    knockout: true
+    note: "Cross-league prediction from J1 + K1 + Saudi + Chinese Super League. Renamed from ACL in 2024-25."
+  afc_champions_league_two:
+    name: AFC Champions League Two
+    country: ASI
+    football_data_code: null
+    api_football_id: 19
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: asia
+    competition_type: club
+    knockout: true
+    note: "Second-tier Asian club competition (replaced AFC Cup in 2024-25)."
+  caf_champions_league:
+    name: CAF Champions League
+    country: AFR
+    football_data_code: null
+    api_football_id: 12
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: africa
+    competition_type: club
+    knockout: true
+    note: "Top African club competition. No domestic feed yet — predictions need API-Football."
+  concacaf_champions_cup:
+    name: CONCACAF Champions Cup
+    country: NAM
+    football_data_code: null
+    api_football_id: 16
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: north_america
+    competition_type: club
+    knockout: true
+    note: "North/Central America + Caribbean club championship. Cross-league pool: MLS + Liga MX."
+  ofc_champions_league:
+    name: OFC Champions League
+    country: OCE
+    football_data_code: null
+    api_football_id: 802
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: oceania
+    competition_type: club
+    knockout: true
+    note: "Oceania club championship. No domestic feed."
+  recopa_sudamericana:
+    name: Recopa Sudamericana
+    country: SAM
+    football_data_code: null
+    api_football_id: 541
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: south_america
+    competition_type: club
+    knockout: true
+    note: "Annual two-leg between Libertadores and Sudamericana winners."
+
+  # ============================================================
+  # Inter-confederation / global cups (clubs from multiple continents)
+  # ============================================================
+  uefa_super_cup:
+    name: UEFA Super Cup
+    country: EUR
+    football_data_code: null
+    api_football_id: 531
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: europe
+    competition_type: club
+    knockout: true
+    note: "Single-match: UCL winner vs Europa League winner."
+  fifa_club_world_cup:
+    name: FIFA Club World Cup
+    country: WLD
+    football_data_code: null
+    api_football_id: 15
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: europe   # most participants come from Europe — fit on EUR pool
+    competition_type: club
+    knockout: true
+    note: "Global club tournament. Cross-continent fit defaults to the European pool (where ~3/4 of competitive entrants train)."
+
+  # ============================================================
+  # Continental national-team competitions
+  # ============================================================
+  # These use national_elo (already populated) and run as Monte Carlo
+  # simulations like the World Cup — same simulator, different team list.
+  euro:
+    name: UEFA European Championship
+    country: EUR
+    football_data_code: null
+    api_football_id: 4
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: europe
+    competition_type: national
+    knockout: true
+    note: "24-team continental tournament. Uses national-team Elo."
+  copa_america:
+    name: Copa América
+    country: SAM
+    football_data_code: null
+    api_football_id: 9
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: south_america
+    competition_type: national
+    knockout: true
+    note: "16-team continental tournament. Uses national-team Elo."
+  asian_cup:
+    name: AFC Asian Cup
+    country: ASI
+    football_data_code: null
+    api_football_id: 7
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: asia
+    competition_type: national
+    knockout: true
+    note: "24-team continental tournament. Uses national-team Elo."
+  africa_cup_of_nations:
+    name: Africa Cup of Nations
+    country: AFR
+    football_data_code: null
+    api_football_id: 6
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: africa
+    competition_type: national
+    knockout: true
+    note: "24-team continental tournament. Uses national-team Elo."
+  uefa_nations_league:
+    name: UEFA Nations League
+    country: EUR
+    football_data_code: null
+    api_football_id: 5
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: europe
+    competition_type: national
+    knockout: false
+    note: "Tiered European national-team league + 4-team Finals. Group + knockout phases."
+  concacaf_nations_league:
+    name: CONCACAF Nations League
+    country: NAM
+    football_data_code: null
+    api_football_id: 26
+    clubelo: false
+    fbref_id: null
+    tier: 4
+    continent: north_america
+    competition_type: national
+    knockout: false
+    note: "CONCACAF national-team league + 4-team Finals."
+
+# World Cup 2026 — 48 teams. Final qualifier slots fill through late 2025
+# / early 2026. The list below tracks the current FIFA bracket; rerun
+# `update.py worldcup` to refresh names.
+worldcup_2026:
+  hosts:
+    - United States
+    - Canada
+    - Mexico
+  # Slots populated by scrape/eloratings.py against the published draw.
+  qualified: []

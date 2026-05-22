@@ -1,0 +1,50 @@
+/* Small overrides on top of Tailwind. Keep this file tiny — most styling
+ * lives in utility classes in index.html. */
+
+[x-cloak] {
+  display: none !important;
+}
+
+html {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+    "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+input[type="text"],
+input[type="search"],
+input:not([type]),
+select,
+textarea {
+  background-color: white;
+  border: 1px solid rgb(203 213 225); /* slate-300 */
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgb(15 23 42); /* slate-900 */
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+
+button:focus-visible {
+  outline: 2px solid rgb(15 23 42);
+  outline-offset: 2px;
+}
+
+/* Tabular numerals for tables of probabilities */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide spin buttons on number inputs (probability matrix etc.) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

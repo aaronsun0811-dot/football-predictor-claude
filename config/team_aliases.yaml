@@ -1,0 +1,511 @@
+# Team name canonicalization.
+#
+# Football data sources use wildly inconsistent team names. football-data.co.uk
+# uses "Real Madrid", football-data.org uses "Real Madrid CF", API-Football
+# uses "Real Madrid", TheSportsDB uses "Real Madrid". When the same club gets
+# fragmented across these names, the Dixon-Coles model treats them as separate
+# teams — wrong predictions, broken cross-source joins.
+#
+# Each entry: canonical name → list of variants seen in the wild. The variants
+# also recognize Chinese names so the UI autocomplete can search bilingually.
+#
+# Format:
+#   canonical_name:
+#     aliases: [list of source-specific names]
+#     zh: optional Chinese display name
+#
+# Used by data/team_normalize.py:canonicalize(name).
+
+# ============================================================
+# England — Premier League / Championship / League One
+# ============================================================
+"Arsenal":
+  aliases: ["Arsenal FC"]
+  zh: "阿森纳"
+"Aston Villa":
+  aliases: ["Aston Villa FC"]
+  zh: "阿斯顿维拉"
+"Chelsea":
+  aliases: ["Chelsea FC"]
+  zh: "切尔西"
+"Liverpool":
+  aliases: ["Liverpool FC"]
+  zh: "利物浦"
+"Manchester City":
+  aliases: ["Man City", "Manchester City FC"]
+  zh: "曼城"
+"Manchester United":
+  aliases: ["Man United", "Man Utd", "Manchester United FC", "Manchester Utd"]
+  zh: "曼联"
+"Tottenham":
+  aliases: ["Tottenham Hotspur", "Tottenham Hotspur FC", "Spurs"]
+  zh: "热刺"
+"Newcastle":
+  aliases: ["Newcastle United", "Newcastle United FC", "Newcastle Utd"]
+  zh: "纽卡斯尔"
+# fd.co.uk uses short names ("Brighton", "Leeds"); fd.org uses long forms
+# ("Brighton & Hove Albion", "Leeds United"). Without these aliases the same
+# team is stored as two separate canonicals → model double-counts and audit
+# can't join. Discovered via the Arsenal-vs-Burnley investigation
+# (final-matchday count showed 24 PL "teams" instead of 20).
+"Brighton":
+  aliases: ["Brighton & Hove Albion", "Brighton and Hove Albion", "Brighton Hove"]
+  zh: "布莱顿"
+"Leeds":
+  aliases: ["Leeds United", "Leeds United FC", "Leeds Utd"]
+  zh: "利兹联"
+"West Ham":
+  aliases: ["West Ham United", "West Ham United FC", "West Ham Utd"]
+  zh: "西汉姆联"
+"Wolves":
+  aliases: ["Wolverhampton Wanderers", "Wolverhampton Wanderers FC", "Wolverhampton"]
+  zh: "狼队"
+"Nottingham Forest":
+  aliases: ["Nottm Forest", "Nottingham Forest FC"]
+  zh: "诺丁汉森林"
+"Nottingham Forest":
+  aliases: ["Nott'm Forest", "Nottm Forest", "Nottingham Forest FC"]
+  zh: "诺丁汉森林"
+
+# ============================================================
+# Spain — La Liga
+# ============================================================
+"Real Madrid":
+  aliases: ["Real Madrid CF"]
+  zh: "皇家马德里"
+"Barcelona":
+  aliases: ["FC Barcelona", "Barcelona SC"]
+  zh: "巴塞罗那"
+"Atletico Madrid":
+  aliases: ["Atlético de Madrid", "Atletico de Madrid", "Atlético Madrid", "Club Atlético de Madrid"]
+  zh: "马德里竞技"
+"Sevilla":
+  aliases: ["Sevilla FC"]
+  zh: "塞维利亚"
+"Girona":
+  aliases: ["Girona FC"]
+  zh: "赫罗纳"
+"Villarreal":
+  aliases: ["Villarreal CF"]
+  zh: "比利亚雷亚尔"
+"Real Sociedad":
+  aliases: ["Sociedad"]
+  zh: "皇家社会"
+"Athletic Bilbao":
+  aliases: ["Athletic Club", "Athletic Club de Bilbao"]
+  zh: "毕尔巴鄂竞技"
+"Real Betis":
+  aliases: ["Betis"]
+  zh: "皇家贝蒂斯"
+"Celta Vigo":
+  aliases: ["Celta de Vigo", "RC Celta de Vigo"]
+  zh: "塞尔塔"
+"Rayo Vallecano":
+  aliases: ["Vallecano"]
+  zh: "巴列卡诺"
+
+# ============================================================
+# Italy — Serie A
+# ============================================================
+"AC Milan":
+  aliases: ["Milan"]
+  zh: "AC米兰"
+"Inter":
+  aliases: ["Inter Milan", "Internazionale", "FC Internazionale Milano"]
+  zh: "国际米兰"
+"Juventus":
+  aliases: ["Juventus FC"]
+  zh: "尤文图斯"
+"Roma":
+  aliases: ["AS Roma"]
+  zh: "罗马"
+"Napoli":
+  aliases: ["SSC Napoli"]
+  zh: "那不勒斯"
+"Atalanta":
+  aliases: ["Atalanta BC"]
+  zh: "亚特兰大"
+
+# ============================================================
+# Germany — Bundesliga
+# ============================================================
+"Bayern Munich":
+  aliases: ["Bayern München", "FC Bayern München", "FC Bayern Munich"]
+  zh: "拜仁慕尼黑"
+"Dortmund":
+  aliases: ["Borussia Dortmund", "BVB"]
+  zh: "多特蒙德"
+"RB Leipzig":
+  aliases: ["RasenBallsport Leipzig", "Leipzig"]
+  zh: "RB 莱比锡"
+"Leverkusen":
+  aliases: ["Bayer Leverkusen", "Bayer 04 Leverkusen"]
+  zh: "勒沃库森"
+"Frankfurt":
+  aliases: ["Eintracht Frankfurt"]
+  zh: "法兰克福"
+
+# ============================================================
+# France — Ligue 1
+# ============================================================
+"Paris SG":
+  aliases: ["PSG", "Paris Saint-Germain", "Paris Saint-Germain FC"]
+  # NOTE: don't add "Paris" — that conflicts with Paris FC (a different club).
+  zh: "巴黎圣日耳曼"
+"Marseille":
+  aliases: ["Olympique Marseille", "Olympique de Marseille", "OM"]
+  zh: "马赛"
+"Lyon":
+  aliases: ["Olympique Lyonnais", "OL"]
+  zh: "里昂"
+"Monaco":
+  aliases: ["AS Monaco", "AS Monaco FC"]
+  zh: "摩纳哥"
+"Brest":
+  # football-data.org writes "Stade Brestois 29" (with département code) which
+  # canonicalize strips to "Stade Brestois" — different root from "Brest".
+  # Explicit alias is the only way to bridge these.
+  aliases: ["Stade Brestois", "Stade Brestois 29"]
+  zh: "布雷斯特"
+
+# ============================================================
+# Portugal — Primeira Liga
+# ============================================================
+"Benfica":
+  aliases: ["SL Benfica"]
+  zh: "本菲卡"
+"Porto":
+  aliases: ["FC Porto"]
+  zh: "波尔图"
+"Sporting CP":
+  aliases: ["Sporting Lisbon", "Sporting Clube de Portugal"]
+  # NOTE: bare "Sporting" is too ambiguous (Sporting Gijón is a different club).
+  zh: "葡萄牙体育"
+
+# ============================================================
+# Netherlands — Eredivisie
+# ============================================================
+"Ajax":
+  aliases: ["AFC Ajax"]
+  zh: "阿贾克斯"
+"PSV":
+  aliases: ["PSV Eindhoven"]
+  zh: "埃因霍温"
+"Feyenoord":
+  aliases: ["Feyenoord Rotterdam"]
+  zh: "费耶诺德"
+"AZ Alkmaar":
+  # Sources split: football-data.org → "AZ"; TheSportsDB → "AZ Alkmaar".
+  # Canonical chosen as "AZ Alkmaar" (less ambiguous than bare "AZ").
+  aliases: ["AZ"]
+  zh: "阿尔克马尔"
+
+# ============================================================
+# Belgium — Jupiler Pro League (fd.co.uk B1)
+# ============================================================
+"Anderlecht":
+  aliases: ["RSC Anderlecht"]
+  zh: "安德莱赫特"
+"Club Brugge":
+  aliases: ["Club Brugge KV", "Brugge", "Bruges"]
+  zh: "布鲁日"
+"Genk":
+  aliases: ["KRC Genk", "Racing Genk"]
+  zh: "亨克"
+"Mechelen":
+  aliases: ["KV Mechelen"]
+  zh: "梅赫伦"
+"Antwerp":
+  aliases: ["Royal Antwerp", "Royal Antwerp FC"]
+  zh: "安特卫普"
+"Standard Liege":
+  aliases: ["Standard Liège", "Standard de Liège", "Royal Standard"]
+  zh: "标准列日"
+"Union Saint-Gilloise":
+  aliases: ["St. Gilloise", "USG", "Royale Union Saint-Gilloise"]
+  zh: "圣吉罗斯联合"
+
+# ============================================================
+# Brazil — Brasileirão (heavy duplication on this league)
+# ============================================================
+"Flamengo":
+  aliases: ["CR Flamengo", "Flamengo RJ"]
+  zh: "弗拉门戈"
+"Palmeiras":
+  aliases: ["Sociedade Esportiva Palmeiras", "SE Palmeiras"]
+  zh: "帕尔梅拉斯"
+"Sao Paulo":
+  aliases: ["São Paulo", "São Paulo FC", "Sao Paulo FC"]
+  zh: "圣保罗"
+"Corinthians":
+  aliases: ["SC Corinthians"]
+  zh: "科林蒂安"
+"Botafogo":
+  aliases: ["Botafogo FR", "Botafogo de Futebol e Regatas"]
+  zh: "博塔弗戈"
+"Fluminense":
+  aliases: ["Fluminense FC"]
+  zh: "弗鲁米嫩塞"
+"Internacional":
+  aliases: ["SC Internacional"]
+  zh: "国际"
+"Atletico Mineiro":
+  aliases: ["Atlético Mineiro", "Atlético-MG", "Atletico-MG", "CA Mineiro"]
+  zh: "米内罗竞技"
+"Vasco da Gama":
+  aliases: ["CR Vasco da Gama"]
+  zh: "瓦斯科·达伽马"
+"Cruzeiro":
+  aliases: ["Cruzeiro EC"]
+  zh: "克鲁塞罗"
+"Gremio":
+  aliases: ["Grêmio", "Grêmio FBPA"]
+  zh: "格雷米奥"
+"Bahia":
+  aliases: ["EC Bahia"]
+  zh: "巴伊亚"
+
+# ============================================================
+# Argentina — Liga Profesional
+# ============================================================
+"Boca Juniors":
+  aliases: ["CA Boca Juniors", "Boca Jrs"]
+  zh: "博卡青年"
+"River Plate":
+  aliases: ["CA River Plate"]
+  zh: "河床"
+"Racing Club":
+  aliases: ["Racing"]
+  zh: "拉辛"
+
+# ============================================================
+# Saudi Arabia — Saudi Pro League
+# ============================================================
+"Al-Hilal":
+  aliases: ["Al Hilal", "Al-Hilal Saudi FC", "Al Hilal SFC"]
+  zh: "利雅得新月"
+"Al-Nassr":
+  aliases: ["Al Nassr", "Al-Nassr FC"]
+  zh: "利雅得胜利"
+"Al-Ittihad":
+  aliases: ["Al Ittihad", "Al-Ittihad FC", "Al-Ittihad Club"]
+  zh: "吉达联合"
+"Al-Faisaly":
+  aliases: ["Al Faisaly", "Al-Faisaly FC"]
+  zh: "费萨利"
+
+# ============================================================
+# Japan — J1 League
+# ============================================================
+# Several J1 teams share a city prefix that the boilerplate-strip heuristic
+# would over-collapse ("Yokohama FC" → "Yokohama" collides with "Yokohama F.
+# Marinos"). Explicit entries below keep them distinct.
+"Vissel Kobe":
+  aliases: ["Vissel"]
+  zh: "神户胜利船"
+"Yokohama F. Marinos":
+  aliases: ["Yokohama F Marinos", "Yokohama FM", "Yokohama Marinos"]
+  zh: "横滨水手"
+"Yokohama FC":
+  # Distinct from Yokohama F. Marinos. Without this entry, the FC-stripper
+  # would collapse "Yokohama FC" to "Yokohama" and lose the distinction.
+  aliases: ["Yokohama"]
+  zh: "横滨FC"
+"Urawa Reds":
+  aliases: ["Urawa", "Urawa Red Diamonds"]
+  zh: "浦和红钻"
+"Kawasaki Frontale":
+  aliases: ["Kawasaki"]
+  zh: "川崎前锋"
+"FC Tokyo":
+  # Distinct from "Tokyo Verdy". Without explicit alias, FC-stripping would
+  # turn "FC Tokyo" into bare "Tokyo" which is then ambiguous.
+  aliases: ["Tokyo"]
+  zh: "东京FC"
+"Tokyo Verdy":
+  aliases: ["Verdy Tokyo", "Verdy"]
+  zh: "东京绿茵"
+"Cerezo Osaka":
+  aliases: ["Cerezo"]
+  zh: "大阪樱花"
+"Gamba Osaka":
+  aliases: ["Gamba"]
+  zh: "大阪钢巴"
+"Kashima Antlers":
+  aliases: ["Kashima"]
+  zh: "鹿岛鹿角"
+"Sanfrecce Hiroshima":
+  aliases: ["Sanfrecce", "Hiroshima"]
+  zh: "广岛三箭"
+"Nagoya Grampus":
+  aliases: ["Nagoya"]
+  zh: "名古屋鲸八"
+"Consadole Sapporo":
+  aliases: ["Hokkaido Consadole Sapporo", "Sapporo"]
+  zh: "札幌冈萨多"
+"Machida Zelvia":
+  aliases: ["FC Machida Zelvia"]
+  zh: "町田泽维亚"
+"Shimizu S-Pulse":
+  aliases: ["Shimizu S-pulse", "Shimizu", "S-Pulse"]
+  zh: "清水心跳"
+
+# ============================================================
+# Korea — K League 1
+# ============================================================
+"Ulsan Hyundai":
+  aliases: ["Ulsan HD", "Ulsan"]
+  zh: "蔚山现代"
+"Jeonbuk Hyundai":
+  aliases: ["Jeonbuk", "Jeonbuk Hyundai Motors", "Jeonbuk Motors"]
+  zh: "全北现代"
+"FC Seoul":
+  # Distinct from Seoul E-Land. Without this entry, FC-stripping would
+  # collapse "FC Seoul" to "Seoul" which collides with the second club.
+  aliases: ["Seoul"]
+  zh: "首尔FC"
+"Seoul E-Land":
+  aliases: ["Seoul E Land"]
+  zh: "首尔E-Land"
+"Pohang Steelers":
+  aliases: ["Pohang"]
+  zh: "浦项制铁"
+"Suwon Samsung Bluewings":
+  aliases: ["Suwon Bluewings", "Suwon"]
+  zh: "水原三星"
+"Suwon FC":
+  # Distinct from Suwon Samsung Bluewings. Bare "Suwon" is ambiguous between
+  # the two; we route it to the more famous Bluewings via the entry above.
+  aliases: ["Suwon City"]
+  zh: "水原FC"
+"Gangwon FC":
+  aliases: ["Gangwon"]
+  zh: "江原FC"
+"Daegu FC":
+  aliases: ["Daegu"]
+  zh: "大邱FC"
+"Gwangju FC":
+  aliases: ["Gwangju"]
+  zh: "光州FC"
+"Incheon United":
+  aliases: ["Incheon"]
+  zh: "仁川联"
+"Jeju United":
+  aliases: ["Jeju"]
+  zh: "济州联"
+"Gimcheon Sangmu":
+  aliases: ["Sangju Sangmu", "Sangmu"]
+  zh: "金泉尚武"
+
+# ============================================================
+# China — Chinese Super League
+# ============================================================
+"Shanghai Port":
+  aliases: ["Shanghai SIPG", "Shanghai Port FC"]
+  zh: "上海海港"
+"Shanghai Shenhua":
+  aliases: ["Shenhua"]
+  zh: "上海申花"
+"Beijing Guoan":
+  aliases: ["Beijing", "Guoan"]
+  zh: "北京国安"
+"Shandong Taishan":
+  aliases: ["Shandong", "Shandong Luneng"]
+  zh: "山东泰山"
+
+# ============================================================
+# MLS
+# ============================================================
+# MLS is the worst-offender for shortform vs longform divergence — TheSportsDB
+# tends toward shortforms ("LAFC", "Galaxy"), api-football toward longforms
+# ("Los Angeles FC"). The aliases below try to bridge both directions.
+"Inter Miami":
+  aliases: ["Inter Miami CF"]
+  zh: "迈阿密国际"
+"LA Galaxy":
+  aliases: ["Los Angeles Galaxy"]
+  zh: "洛杉矶银河"
+"LAFC":
+  aliases: ["Los Angeles FC"]
+  zh: "洛杉矶FC"
+"Seattle Sounders":
+  aliases: ["Seattle", "Seattle Sounders FC"]
+  zh: "西雅图音速"
+"Atlanta United":
+  aliases: ["Atlanta United FC", "Atlanta"]
+  zh: "亚特兰大联"
+"Austin FC":
+  aliases: ["Austin"]
+  zh: "奥斯汀FC"
+"Charlotte FC":
+  aliases: ["Charlotte"]
+  zh: "夏洛特FC"
+"Chicago Fire":
+  aliases: ["Chicago Fire FC", "Chicago"]
+  zh: "芝加哥火焰"
+"FC Cincinnati":
+  # Distinct heuristic: leading-FC stripping would give "Cincinnati" — keep
+  # both forms mapped here for safety.
+  aliases: ["Cincinnati"]
+  zh: "辛辛那提"
+"Columbus Crew":
+  aliases: ["Columbus Crew SC", "Columbus"]
+  zh: "哥伦布机员"
+"DC United":
+  aliases: ["D.C. United", "D C United"]
+  zh: "华盛顿联"
+"FC Dallas":
+  aliases: ["Dallas"]
+  zh: "达拉斯FC"
+"Houston Dynamo":
+  aliases: ["Houston Dynamo FC", "Dynamo Houston"]
+  zh: "休斯顿迪纳摩"
+"Sporting Kansas City":
+  aliases: ["Sporting KC", "Kansas City", "Sporting K.C."]
+  zh: "堪萨斯城运动"
+"Minnesota United":
+  aliases: ["Minnesota United FC", "Minnesota"]
+  zh: "明尼苏达联"
+"CF Montreal":
+  aliases: ["Montreal", "CF Montréal", "Montreal Impact"]
+  zh: "蒙特利尔"
+"Nashville SC":
+  # SC strip ⇒ "Nashville". Keep this entry so the canonical is the longer form.
+  aliases: ["Nashville"]
+  zh: "纳什维尔"
+"New York City FC":
+  aliases: ["NYCFC", "NYC FC", "New York City"]
+  zh: "纽约城"
+"New York Red Bulls":
+  aliases: ["NY Red Bulls", "NYRB", "Red Bulls New York"]
+  zh: "纽约红牛"
+"Orlando City":
+  aliases: ["Orlando City SC", "Orlando"]
+  zh: "奥兰多城"
+"Portland Timbers":
+  aliases: ["Portland"]
+  zh: "波特兰木材"
+"San Jose Earthquakes":
+  aliases: ["San Jose"]
+  zh: "圣何塞地震"
+"St. Louis City":
+  aliases: ["St. Louis City SC", "Saint Louis City"]
+  zh: "圣路易斯城"
+"Toronto FC":
+  aliases: ["Toronto"]
+  zh: "多伦多FC"
+"Vancouver Whitecaps":
+  aliases: ["Vancouver Whitecaps FC", "Vancouver"]
+  zh: "温哥华白帽"
+"Real Salt Lake":
+  aliases: ["RSL", "Salt Lake"]
+  zh: "盐湖城真"
+"Philadelphia Union":
+  aliases: ["Philadelphia"]
+  zh: "费城联合"
+"Colorado Rapids":
+  aliases: ["Colorado"]
+  zh: "科罗拉多急流"
+"New England Revolution":
+  aliases: ["New England", "Revs"]
+  zh: "新英格兰革命"

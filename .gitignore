@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/cache/
+data/exports/
+data/*.sqlite3
+data/*.db
+
+# QA backup files from i18n cleanup (R44–QA)
+*.bak.qa*

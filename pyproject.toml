@@ -1,0 +1,10 @@
+[project]
+name = "football-predictor"
+version = "0.1.0"
+description = "Dixon-Coles + Elo football prediction service with SQLite storage."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

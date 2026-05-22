@@ -1,0 +1,148 @@
+[football-data] SP1 2024: The read operation timed out
+[football-data] I2 2024: The read operation timed out
+[
+  {
+    "source": "football-data.co.uk",
+    "league_key": "premier_league",
+    "rows_changed": 1880,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "championship",
+    "rows_changed": 2760,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "league_one",
+    "rows_changed": 2760,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "la_liga",
+    "rows_changed": 1500,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "segunda",
+    "rows_changed": 2277,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "serie_a",
+    "rows_changed": 1880,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "serie_b",
+    "rows_changed": 1520,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "primeira",
+    "rows_changed": 1521,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "liga_portugal_2",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "eredivisie",
+    "rows_changed": 1521,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "bundesliga",
+    "rows_changed": 1521,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "bundesliga_2",
+    "rows_changed": 1521,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "ligue_1",
+    "rows_changed": 1669,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "ligue_2",
+    "rows_changed": 1750,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "belgian_pro",
+    "rows_changed": 1529,
+    "message": "Updated results."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "saudi_pro",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "j1",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "k1",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "mls",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "brasileirao",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "primera_argentina",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "football-data.co.uk",
+    "league_key": "liga_mx",
+    "rows_changed": 0,
+    "message": "No football-data.co.uk code configured; external provider required."
+  },
+  {
+    "source": "clubelo",
+    "league_key": null,
+    "rows_changed": 0,
+    "message": "Update failed: timed out"
+  },
+  {
+    "source": "eloratings.net",
+    "league_key": null,
+    "rows_changed": 0,
+    "message": "Update failed: eloratings.net layout changed: ratingsData array not found. Check the HTML structure and update RATINGS_RE."
+  }
+]
