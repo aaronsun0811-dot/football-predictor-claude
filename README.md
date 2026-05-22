@@ -1,11 +1,14 @@
 # football-predictor
 
+[English](README.md) · [中文](README.zh.md)
+
 Team-level football match predictor. Dixon-Coles bivariate Poisson with Elo
-prior correction, fed by free public data sources. Two surfaces:
+prior correction, fed by free public data sources. The web UI is fully
+bilingual (English / 中文). Three surfaces:
 
 - **Web UI** — `python predict.py serve` → open <http://localhost:8000>
   (single-page app: match predict / World Cup / leagues / about; no build step)
-- **CLI** — `python predict.py predict "Arsenal" "Chelsea" --league 英超`
+- **CLI** — `python predict.py predict "Arsenal" "Chelsea" --league premier_league`
 - **HTTP API** — `python predict.py serve` exposes FastAPI on :8000
 
 The current prediction model is team-level. Player tables are included so paid
@@ -51,22 +54,22 @@ python predict.py init-db
 # Everything (5y results + today's club Elo + national Elo):
 python predict.py update
 
-# Just one league. Supports Chinese aliases:
-python predict.py update --league 英超
+# Just one league. The `--league` flag accepts league keys directly,
+# or Chinese aliases (see the "Chinese aliases" section below).
 python predict.py update --league premier_league
-python predict.py update --league 沙特       # = saudi_pro
-python predict.py update --league 中超       # = chinese_super_league
+python predict.py update --league saudi_pro
+python predict.py update --league chinese_super_league
 
 # Optional API-Football path:
 cp .env.example .env
 # edit FOOTBALL_API_KEY
 python predict.py doctor --live
-python predict.py update --league 沙特 --include-api-football
-python predict.py update --league 中超 --include-api-football
-python predict.py update --league 英超 --include-api-football --include-players
+python predict.py update --league saudi_pro --include-api-football
+python predict.py update --league chinese_super_league --include-api-football
+python predict.py update --league premier_league --include-api-football --include-players
 
 # Optional FBref xG enrichment for leagues with fbref_id:
-python predict.py update --league 英超 --include-xg
+python predict.py update --league premier_league --include-xg
 
 # Verify API-Football league IDs before relying on them:
 python predict.py api-football-leagues --country China --search "Super League"
@@ -78,18 +81,37 @@ The HTTP API also exposes `POST /update` (background task), `GET /leagues`,
 `GET /coverage`, `GET /doctor`, `POST /backtest`, and
 `GET /export/{matches|ratings|players|player_season_stats|update_state}`.
 
+## Chinese aliases
+
+The `--league` flag accepts Chinese names in place of league keys. Useful when
+you don't want to remember English slugs.
+
+| Alias        | League key             |
+|--------------|------------------------|
+| `英超`       | `premier_league`       |
+| `西甲`       | `la_liga`              |
+| `德甲`       | `bundesliga`           |
+| `意甲`       | `serie_a`              |
+| `法甲`       | `ligue_1`              |
+| `中超`       | `chinese_super_league` |
+| `沙特`       | `saudi_pro`            |
+| `世界杯`     | `world_cup`            |
+
+Full list in `scrape/registry.py::EXTRA_ALIASES`. The web UI's league dropdown
+shows both forms automatically based on the language toggle.
+
 ## Predict a match
 
 ```bash
 # Club match. League is optional but improves the fit.
-python predict.py predict "Arsenal" "Chelsea" --league 英超
+python predict.py predict "Arsenal" "Chelsea" --league premier_league
 
 # Neutral venue, knockout (advancement probability instead of pure draw).
 python predict.py predict "Real Madrid" "Bayern Munich" \
   --neutral-site --stage "quarter-final"
 
 # International (uses national Elo).
-python predict.py predict "Brazil" "Argentina" --league 世界杯
+python predict.py predict "Brazil" "Argentina" --league world_cup
 ```
 
 Output (CLI): JSON with `probabilities {home_win, draw, away_win}`,
@@ -103,8 +125,8 @@ internal Elo from the historical matches already in SQLite.
 
 ```bash
 # Walk-forward test on one league.
-python predict.py backtest --league 英超 --min-train-matches 120 --refit-every 5
-python predict.py backtest --league 英超 --include-predictions  # verbose
+python predict.py backtest --league premier_league --min-train-matches 120 --refit-every 5
+python predict.py backtest --league premier_league --include-predictions  # verbose
 
 # See which leagues currently have usable data.
 python predict.py coverage
@@ -198,7 +220,7 @@ data/database.py            SQLAlchemy ORM (matches, ratings, players, update st
 models/elo.py               Internal leakage-safe Elo builder.
 models/backtest.py          Walk-forward 1X2 backtest metrics.
 models/dixon_coles.py       Dixon-Coles + Elo-adjusted bivariate Poisson.
-scrape/registry.py          LeagueRegistry + EXTRA_ALIASES (英超 etc.).
+scrape/registry.py          LeagueRegistry + EXTRA_ALIASES (Chinese aliases).
 scrape/update.py            IncrementalUpdater orchestrator.
 scrape/api_football.py      Optional API-Football fixtures + player stats.
 scrape/clubelo.py           ClubElo daily snapshot.
