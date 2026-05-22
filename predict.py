@@ -162,6 +162,10 @@ class BacktestRequest(BaseModel):
     max_goals: int = Field(8, ge=4, le=15)
     refit_every: int = Field(1, ge=1)
     xg_blend_weight: float = Field(0.35, ge=0.0, le=1.0)
+    # Strength of the Elo prior correction. 0 = pure team-attack/defense DC.
+    # Default 0.10 matches DixonColesConfig. The /diagnostics/ablation endpoint
+    # sets this to 0 to measure how much Elo contributes to model quality.
+    elo_weight: float = Field(0.10, ge=0.0, le=1.0)
     summary_only: bool = Field(
         False,
         description="If true, drop the per-match predictions array from the response.",
@@ -389,6 +393,126 @@ def predict_in_play_endpoint(payload: InPlayRequest) -> dict[str, Any]:
         "model": pre["model"]["type"],
     }
     return response
+
+
+@app.post("/diagnostics/ablation")
+def diagnostics_ablation_endpoint(payload: BacktestRequest) -> dict[str, Any]:
+    """Feature-ablation diagnostics: re-run the backtest with one prior turned
+    off at a time, return per-config metrics + delta vs full.
+
+    This is the data-driven version of "is Elo actually helping?". For each
+    of the four configurations (full / no Elo / no xG / neither), we run the
+    same walk-forward backtest and report accuracy, Brier, log-loss, and ECE.
+    The deltas vs the full configuration show, in plain numbers, how much
+    each prior contributes to model quality.
+
+    Cost: 4× backtest runtime, ~2-3 minutes for a typical Tier-1 league.
+    Heavier than the regular /diagnostics — call it deliberately, not on
+    every UI render.
+    """
+    from models.diagnostics import expected_calibration_error  # noqa: PLC0415
+
+    league_norm = _normalize_optional_league(payload.league, LeagueRegistry())
+    if not league_norm:
+        raise HTTPException(status_code=400, detail="--league is required for ablation; "
+            "running across all leagues would take 30+ minutes.")
+
+    # Four configurations to compare. We always include the full one first
+    # so the UI can compute deltas client-side if it wants.
+    configs = [
+        ("full",         {"elo_weight": 0.10, "xg_blend_weight": payload.xg_blend_weight}),
+        ("no_elo",       {"elo_weight": 0.00, "xg_blend_weight": payload.xg_blend_weight}),
+        ("no_xg",        {"elo_weight": 0.10, "xg_blend_weight": 0.00}),
+        ("no_elo_no_xg", {"elo_weight": 0.00, "xg_blend_weight": 0.00}),
+    ]
+
+    results = []
+    for name, overrides in configs:
+        req = payload.model_copy(update={**overrides, "summary_only": False})
+        try:
+            run = backtest_payload(req)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        summary = run["summary"]
+        predictions = pd.DataFrame(run["predictions"])
+        ece = expected_calibration_error(predictions)
+        ece_values = [v for v in ece.values() if v is not None] if ece else []
+        ece_mean = sum(ece_values) / len(ece_values) if ece_values else None
+        results.append({
+            "config": name,
+            "metrics": {
+                "accuracy": summary.get("accuracy"),
+                "brier_score": summary.get("brier_score"),
+                "log_loss": summary.get("log_loss"),
+                "ece_mean": ece_mean,
+                "sample_size": summary.get("sample_size"),
+            },
+            "config_params": overrides,
+        })
+
+    # Add delta-vs-full to each non-full row so the UI doesn't need math.
+    full = results[0]["metrics"]
+    for r in results[1:]:
+        m = r["metrics"]
+        r["delta_vs_full"] = {
+            "accuracy_pp": (m["accuracy"] - full["accuracy"]) * 100
+                            if m["accuracy"] is not None and full["accuracy"] is not None else None,
+            "brier": (m["brier_score"] - full["brier_score"])
+                            if m["brier_score"] is not None and full["brier_score"] is not None else None,
+            "log_loss": (m["log_loss"] - full["log_loss"])
+                            if m["log_loss"] is not None and full["log_loss"] is not None else None,
+            "ece_mean": (m["ece_mean"] - full["ece_mean"])
+                            if m["ece_mean"] is not None and full["ece_mean"] is not None else None,
+        }
+
+    # Detect the silent-feature trap: if no_xg matches full exactly, it means
+    # there's no xG data in the matches table for this league (so flipping
+    # xg_blend_weight off changed nothing). Surface this — the alternative is
+    # the user staring at a misleading "+0.000 brier delta" thinking xG is
+    # neutral, when really it's never been pulled.
+    silent_features = []
+    full_m = results[0]["metrics"]
+    for r in results[1:]:
+        m = r["metrics"]
+        is_identical = (
+            m["accuracy"] == full_m["accuracy"]
+            and m["brier_score"] == full_m["brier_score"]
+            and m["log_loss"] == full_m["log_loss"]
+        )
+        if is_identical:
+            # The ablation knob did nothing. Either the data isn't there or
+            # the feature isn't actually plumbed through.
+            if r["config"] == "no_xg":
+                silent_features.append({
+                    "feature": "xg",
+                    "explanation": (
+                        f"no_xg run produced identical metrics to full, meaning the "
+                        f"matches table has no populated home_xg/away_xg for {league_norm}. "
+                        "Run `python predict.py update --league " + (payload.league or league_norm) +
+                        " --include-xg` to backfill FBref xG, then re-run this ablation."
+                    ),
+                })
+            elif r["config"] == "no_elo":
+                silent_features.append({
+                    "feature": "elo",
+                    "explanation": (
+                        "no_elo run produced identical metrics to full. This is unusual — "
+                        "Elo should always contribute SOMETHING. Check that pre_match_elos "
+                        "were attached (look at the predictions response for "
+                        "home_elo/away_elo fields)."
+                    ),
+                })
+
+    return {
+        "league": league_norm,
+        "configurations": results,
+        "silent_features": silent_features,
+        "request": {
+            "league": payload.league,
+            "min_train_matches": payload.min_train_matches,
+            "refit_every": payload.refit_every,
+        },
+    }
 
 
 @app.post("/diagnostics")
@@ -1565,6 +1689,7 @@ def backtest_payload(payload: BacktestRequest) -> dict[str, Any]:
             max_goals=payload.max_goals,
             refit_every=payload.refit_every,
             xg_blend_weight=payload.xg_blend_weight,
+            elo_weight=payload.elo_weight,
         ),
     )
     response = result.to_dict()

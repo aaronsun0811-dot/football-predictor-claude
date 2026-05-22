@@ -26,6 +26,11 @@ class BacktestConfig:
     home_advantage: float = 0.22
     refit_every: int = 1
     xg_blend_weight: float = 0.35
+    # Ablation knob: 0 silences the Elo prior entirely (the model becomes pure
+    # team-attack/defense Dixon-Coles with no rating-based shrinkage). Default
+    # 0.10 matches DixonColesConfig.elo_weight — the production setting.
+    # Set to 0.0 in /diagnostics/ablation to measure how much Elo contributes.
+    elo_weight: float = 0.10
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,7 @@ def backtest_dixon_coles(
                         max_goals=config.max_goals,
                         optimizer_maxiter=config.optimizer_maxiter,
                         xg_blend_weight=config.xg_blend_weight,
+                        elo_weight=config.elo_weight,
                     )
                 ).fit(train, as_of=train["date"].max())
                 last_fit_index = idx
