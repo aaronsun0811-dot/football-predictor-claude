@@ -2028,6 +2028,145 @@ def backfill_results_cmd(
     typer.echo(json.dumps(report, ensure_ascii=False, indent=2, default=str))
 
 
+@cli.command("backfill-api-xg")
+def backfill_api_xg_cmd(
+    league: str = typer.Option(..., help="League key or Chinese alias (英超, 西甲, etc.)."),
+    season: int = typer.Option(..., help="Season start year, e.g. 2024 for 2024-25 season."),
+    limit: int = typer.Option(
+        None,
+        help="Cap how many fixtures to enrich. API-Football free tier is 100/day; "
+             "EPL season is 380 fixtures so plan accordingly. None = enrich all that "
+             "are missing xG, stopping early if the daily quota gets exhausted.",
+    ),
+    skip_if_present: bool = typer.Option(
+        True,
+        help="If True, only hit the API for fixtures where home_xg IS NULL. Defaults to True.",
+    ),
+    db_path: Path = typer.Option(DEFAULT_DB_PATH, help="SQLite database path."),
+) -> None:
+    """Backfill home_xg / away_xg from API-Football's /fixtures/statistics.
+
+    Why this exists: the FBref xG scraper has been silently 403'd by FBref's
+    anti-bot for an unknown but extended period. As a result, no league has
+    populated home_xg/away_xg fields, and the xG-blending feature has been
+    a no-op in production. Discovered via /diagnostics/ablation's
+    silent_features warning (see commit f608e22).
+
+    API-Football has the same data under a different name: each fixture's
+    /fixtures/statistics response contains an ``expected_goals`` stat per team.
+    One request per fixture. EPL one season = ~380 requests = 4 days of free
+    quota. Paid tier removes the constraint.
+
+    Idempotent: defaults to skipping fixtures that already have xG. Pass
+    --no-skip-if-present to overwrite.
+    """
+    from scrape.api_football import client_from_env, is_daily_quota_exhausted  # noqa: PLC0415
+    from sqlalchemy import text  # noqa: PLC0415
+
+    db = init_database(db_path)
+    registry = LeagueRegistry()
+    league_key = _normalize_optional_league(league, registry)
+    if not league_key:
+        typer.echo(f"Unknown league: {league}", err=True)
+        raise typer.Exit(1)
+    lg = registry.leagues.get(league_key)
+    if not lg or lg.api_football_id is None:
+        typer.echo(f"League '{league_key}' has no api_football_id configured.", err=True)
+        raise typer.Exit(1)
+
+    af = client_from_env()
+    if af is None:
+        typer.echo("No API-Football key configured (set API_FOOTBALL_KEY or FOOTBALL_API_KEY).", err=True)
+        raise typer.Exit(1)
+    if is_daily_quota_exhausted():
+        typer.echo("API-Football daily quota already exhausted. Wait until tomorrow.", err=True)
+        raise typer.Exit(1)
+
+    # 1. Pull the fixture list for this league/season from API-Football. We
+    #    need the API-Football fixture IDs to call /fixtures/statistics.
+    typer.echo(f"Fetching {league_key} {season}-{season+1} fixture list…", err=True)
+    fixtures = af.fetch_fixtures(league_id=int(lg.api_football_id), season=season)
+    typer.echo(f"  → {len(fixtures)} fixtures", err=True)
+    if not fixtures:
+        raise typer.Exit(0)
+
+    # 2. For each fixture, look up our matches row by (date, home_team, away_team)
+    #    and check if xG is already filled. We canonicalize team names so
+    #    api-football's "Manchester United" matches our normalized form.
+    from data.team_normalize import canonicalize  # noqa: PLC0415
+
+    needs_xg: list[dict[str, Any]] = []
+    with db.engine.begin() as conn:
+        for fx in fixtures:
+            if fx.get("fixture", {}).get("status", {}).get("short") != "FT":
+                continue  # only enrich finished fixtures
+            home = fx["teams"]["home"]["name"]
+            away = fx["teams"]["away"]["name"]
+            d = fx["fixture"]["date"][:10]  # YYYY-MM-DD
+            home_canon = canonicalize(home) or home
+            away_canon = canonicalize(away) or away
+            row = conn.execute(text(
+                "SELECT id, home_xg, away_xg FROM matches "
+                "WHERE date = :d AND league_key = :lg "
+                "AND (home_team = :h OR home_team = :hc) "
+                "AND (away_team = :a OR away_team = :ac) "
+                "LIMIT 1"
+            ), {"d": d, "lg": league_key, "h": home, "hc": home_canon,
+                 "a": away, "ac": away_canon}).fetchone()
+            if row is None:
+                continue
+            if skip_if_present and row[1] is not None and row[2] is not None:
+                continue
+            needs_xg.append({
+                "fx_id": fx["fixture"]["id"],
+                "match_id": row[0],
+                "label": f"{d} {home} vs {away}",
+            })
+
+    typer.echo(f"  → {len(needs_xg)} fixtures need xG enrichment", err=True)
+    if limit:
+        needs_xg = needs_xg[:limit]
+        typer.echo(f"  → limited to first {limit}", err=True)
+    if not needs_xg:
+        typer.echo("Nothing to do.", err=True)
+        raise typer.Exit(0)
+
+    # 3. For each, hit /fixtures/statistics and UPDATE the row.
+    n_updated = 0
+    n_skipped = 0
+    n_quota_hit = 0
+    for i, job in enumerate(needs_xg, 1):
+        if is_daily_quota_exhausted():
+            n_quota_hit = len(needs_xg) - i + 1
+            typer.echo(f"  daily quota exhausted at fixture {i}, stopping early", err=True)
+            break
+        try:
+            hxg, axg = af.fetch_fixture_xg(fixture_id=job["fx_id"])
+        except Exception as exc:  # noqa: BLE001
+            typer.echo(f"  [{i}/{len(needs_xg)}] {job['label']}: ERR {exc}", err=True)
+            n_skipped += 1
+            continue
+        if hxg is None and axg is None:
+            n_skipped += 1
+            continue
+        with db.engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE matches SET home_xg = COALESCE(:hx, home_xg), "
+                "away_xg = COALESCE(:ax, away_xg) WHERE id = :id"
+            ), {"hx": hxg, "ax": axg, "id": job["match_id"]})
+        n_updated += 1
+        if i % 10 == 0:
+            typer.echo(f"  [{i}/{len(needs_xg)}] {job['label']}: home_xg={hxg} away_xg={axg}", err=True)
+
+    typer.echo(json.dumps({
+        "league": league_key, "season": season,
+        "fixtures_inspected": len(fixtures),
+        "needed_xg": len(needs_xg),
+        "updated": n_updated, "skipped_no_data": n_skipped,
+        "stopped_at_quota": n_quota_hit,
+    }, indent=2))
+
+
 @cli.command("snapshot-upcoming")
 def snapshot_upcoming_cmd(
     days_ahead: int = typer.Option(

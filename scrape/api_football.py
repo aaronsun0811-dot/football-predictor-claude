@@ -188,6 +188,36 @@ class ApiFootballClient:
         payload = self.get("/players/squads", params={"team": team_id})
         return list(payload.get("response") or [])
 
+    def fetch_fixture_xg(self, *, fixture_id: int) -> tuple[float | None, float | None]:
+        """Pull per-team expected_goals for one fixture from /fixtures/statistics.
+
+        API-Football exposes ``expected_goals`` as one of the statistic types
+        in the per-fixture statistics array (one entry per team). We pluck
+        that field and return ``(home_xg, away_xg)``. Returns ``(None, None)``
+        if statistics aren't available for the fixture or the league.
+
+        Cost: ONE request per fixture. EPL 2024 full season = 380 requests =
+        4 days of the free-tier 100 req/day quota. For backfill use a paid
+        tier, or accept the trickle.
+        """
+        payload = self.get("/fixtures/statistics", params={"fixture": int(fixture_id)})
+        rows = payload.get("response") or []
+        if len(rows) < 2:
+            return (None, None)
+        # The response is per-team. We assume order = [home, away] which
+        # API-Football documents as the convention, but we don't rely on it —
+        # the matching code in scrape/update can re-order based on team IDs.
+        def _extract(team_block: dict[str, Any]) -> float | None:
+            for stat in team_block.get("statistics") or []:
+                if stat.get("type") in ("expected_goals", "Expected goals", "xG"):
+                    val = stat.get("value")
+                    try:
+                        return float(val) if val is not None else None
+                    except (TypeError, ValueError):
+                        return None
+            return None
+        return (_extract(rows[0]), _extract(rows[1]))
+
     def fetch_players(
         self,
         *,
