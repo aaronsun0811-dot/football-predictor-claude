@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Daily API-Football xG backfill for the premier_league.
+
+        Why: API-Football free tier allows 100 reqs/day. Backfilling a full
+        EPL season (380 fixtures) takes 4 days of patient batching. This
+        plist fires once a day, right after the quota resets, and grabs the
+        next 90 fixtures that don't yet have xG.
+
+        Timing:
+          - API-Football resets the daily quota at UTC 00:00.
+          - CST (Asia/Shanghai) is UTC+8, so quota reset = CST 08:00.
+          - We fire at CST 08:01 to be safely on the new day's quota.
+
+        Idempotency:
+          - backfill-api-xg defaults to --skip-if-present, so once a row has
+            xG it won't be re-fetched.
+          - When all 380 EPL fixtures are filled, the script reports
+            "Nothing to do." and exits 0. The plist still fires daily, but
+            does nothing.
+          - Safe to leave installed indefinitely. To explicitly stop:
+            launchctl unload ~/Library/LaunchAgents/com.aaronsun.football-predictor-claude.api-xg-backfill.plist
+
+        Install:
+            cp deploy/com.aaronsun.football-predictor-claude.api-xg-backfill.plist ~/Library/LaunchAgents/
+            launchctl load ~/Library/LaunchAgents/com.aaronsun.football-predictor-claude.api-xg-backfill.plist
+
+        Verify:
+            tail -f /tmp/football-predictor-claude.api-xg-backfill.log
+            # Wait for tomorrow CST 08:01, expect a fresh JSON summary
+    -->
+    <key>Label</key>
+    <string>com.aaronsun.football-predictor-claude.api-xg-backfill</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/seek/Documents/football-predictor-claude/.venv/bin/python</string>
+        <string>predict.py</string>
+        <string>backfill-api-xg</string>
+        <string>--league</string><string>premier_league</string>
+        <string>--season</string><string>2024</string>
+        <string>--limit</string><string>90</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/seek/Documents/football-predictor-claude</string>
+
+    <!-- CST 08:01 daily — one minute after API-Football's UTC 00:00 quota reset. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>8</integer>
+        <key>Minute</key><integer>1</integer>
+    </dict>
+
+    <!-- Don't fire on load: we already used today's quota. If we re-load
+         tomorrow before 08:01, we'd hit the just-reset quota too early
+         (the API-Football quota window may not align perfectly with UTC 0)
+         and risk a "Nothing to do" iteration. Just wait for the calendar
+         trigger. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/football-predictor-claude.api-xg-backfill.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/football-predictor-claude.api-xg-backfill.log</string>
+
+    <key>ThrottleInterval</key>
+    <integer>3600</integer>
+</dict>
+</plist>
