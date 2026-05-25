@@ -63,8 +63,8 @@ python predict.py update --league 沙特 --include-api-football
 python predict.py update --league 中超 --include-api-football
 python predict.py update --league 英超 --include-api-football --include-players
 
-# 可选 FBref xG 增强（仅 fbref_id 已配置的联赛）：
-python predict.py update --league 英超 --include-xg
+# xG 补充（看下面 "xG 数据源" 小节 — FBref 路径已挂，用 API-Football）：
+python predict.py backfill-api-xg --league 英超 --season 2024 --limit 90
 
 # 在依赖某个 API-Football league ID 之前先核对一下：
 python predict.py api-football-leagues --country China --search "Super League"
@@ -75,6 +75,29 @@ python predict.py api-football-leagues --country China --search "Super League"
 HTTP API 同时暴露 `POST /update`（后台任务）、`GET /leagues`、`GET /coverage`、
 `GET /doctor`、`POST /backtest`、
 `GET /export/{matches|ratings|players|player_season_stats|update_state}`。
+
+## xG 数据源
+
+Dixon-Coles 模型可以吃单场 xG（`home_xg`、`away_xg`）。两条爬虫路径，
+其中一条当前不可用：
+
+| 数据源 | 命令 | 状态 |
+|--------|------|------|
+| API-Football | `predict.py backfill-api-xg --league <key> --season <year>` | **可用** |
+| FBref | `predict.py update --league <key> --include-xg` | **被封** — FBref 对我们的 IP 返回 403 |
+
+**推荐**用 `backfill-api-xg`。API-Football 的 `/fixtures/statistics` 端点
+按球队返回 `expected_goals`。每场比赛 1 个 HTTP 请求，免费档 100 req/天的
+配额下，一个 EPL 整赛季（~380 场）需要约 4 天慢慢补 —— 升级付费档可以一次
+跑完。仓库里有个 launchd plist
+（`deploy/com.aaronsun.football-predictor-claude.api-xg-backfill.plist`），
+每天 CST 8:01 自动跑一批 90 场，实现免维护。
+
+FBref 爬虫代码仍在 `scrape/fbref.py`，但 FBref 现在在网络层把我们 IP 封了
+（所有请求 403，连首页都进不去；不是 UA 或限速问题）。重新启用需要住宅
+代理服务或 headless-browser 绕过 —— 都不在 scope 内。要验证某联赛的 xG
+是不是真的填上了，调 `/diagnostics/ablation` 看返回里的 `silent_features`
+警告数组。
 
 ## 中文别名
 
@@ -176,8 +199,9 @@ python predict.py serve --port 8001
 用 `FOOTBALL_PREDICTOR_ENABLE_SCHEDULER=false` 关掉。
 设 `FOOTBALL_PREDICTOR_DAILY_API_FOOTBALL=true` 让每日任务也拉 API-Football 赛程
 （除非你的配额充裕，建议保持关闭）。
-设 `FOOTBALL_PREDICTOR_DAILY_FBREF_XG=true` 用 FBref xG 补充 football-data 联赛
-（如果 FBref 限制你的 IP 就保持关闭）。
+`FOOTBALL_PREDICTOR_DAILY_FBREF_XG=true` 曾经用于每日 FBref xG 补充，
+但 FBref 现在已经封了我们的 IP —— 看上面"xG 数据源"小节。改用
+`predict.py backfill-api-xg`。
 
 加新模型特性之前，`python predict.py doctor` 要保持绿色。它会检查 SQLite schema、
 配置的数据源、覆盖缺口以及下一步要跑的命令。

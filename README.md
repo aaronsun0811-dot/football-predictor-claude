@@ -68,8 +68,9 @@ python predict.py update --league saudi_pro --include-api-football
 python predict.py update --league chinese_super_league --include-api-football
 python predict.py update --league premier_league --include-api-football --include-players
 
-# Optional FBref xG enrichment for leagues with fbref_id:
-python predict.py update --league premier_league --include-xg
+# xG enrichment (see "xG sources" section below for details — the FBref
+# path has been blocked, API-Football is the working alternative):
+python predict.py backfill-api-xg --league premier_league --season 2024 --limit 90
 
 # Verify API-Football league IDs before relying on them:
 python predict.py api-football-leagues --country China --search "Super League"
@@ -80,6 +81,30 @@ Data lands in `data/football.sqlite3`. Cache CSVs land under `data/cache/`.
 The HTTP API also exposes `POST /update` (background task), `GET /leagues`,
 `GET /coverage`, `GET /doctor`, `POST /backtest`, and
 `GET /export/{matches|ratings|players|player_season_stats|update_state}`.
+
+## xG sources
+
+The Dixon-Coles model accepts per-match expected goals (`home_xg`, `away_xg`).
+Two scrapers exist; one currently doesn't work:
+
+| Source | Path | Status |
+|--------|------|--------|
+| API-Football | `predict.py backfill-api-xg --league <key> --season <year>` | **Working** |
+| FBref | `predict.py update --league <key> --include-xg` | **Blocked** — FBref returns 403 to our IP |
+
+**Recommended**: use `backfill-api-xg`. API-Football's `/fixtures/statistics`
+endpoint exposes per-team `expected_goals`. One HTTP request per fixture, so a
+full EPL season (~380 fixtures) takes ~4 days at the free-tier 100-req/day
+quota — or one shot on a paid plan. A launchd plist
+(`deploy/com.aaronsun.football-predictor-claude.api-xg-backfill.plist`) fires
+a 90-fixture batch daily at CST 08:01 to make this hands-off.
+
+The FBref scraper code still lives in `scrape/fbref.py` and is unchanged, but
+FBref now blocks our IP at the network layer (403 on every request, including
+the homepage; not a UA or rate-limit issue). Re-enabling it would need either
+a residential-proxy service or a headless-browser bypass — neither is in
+scope. To verify whether xG is actually populated for a league, hit
+`/diagnostics/ablation` and look for the `silent_features` warning array.
 
 ## Chinese aliases
 
@@ -184,8 +209,9 @@ The service also starts an APScheduler job that runs `update_all` daily at
 03:30 Asia/Shanghai. Disable with `FOOTBALL_PREDICTOR_ENABLE_SCHEDULER=false`.
 Set `FOOTBALL_PREDICTOR_DAILY_API_FOOTBALL=true` to also pull API-Football
 fixtures in the daily run. Keep this off unless your API quota is comfortable.
-Set `FOOTBALL_PREDICTOR_DAILY_FBREF_XG=true` to enrich football-data leagues
-with FBref xG; keep this off if FBref rate limits your IP.
+`FOOTBALL_PREDICTOR_DAILY_FBREF_XG=true` used to enrich the daily run with
+FBref xG. FBref has since blocked our IP — see the "xG sources" section above.
+Use `predict.py backfill-api-xg` instead.
 
 `python predict.py doctor` should stay green before adding model features. It
 checks the SQLite schema, configured data sources, coverage gaps, and the next
