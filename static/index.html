@@ -700,7 +700,9 @@
             </div>
             <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
               <div class="text-xs text-slate-500 font-semibold mb-3" x-text="$t('wc_chart_title')"></div>
-              <canvas id="wc-chart" height="200"></canvas>
+              <div style="position: relative; height: 200px;">
+                <canvas id="wc-chart"></canvas>
+              </div>
             </div>
           </div>
         </template>
@@ -1154,7 +1156,9 @@
                   <div class="text-xs text-slate-500 font-semibold mb-3" x-text="$t('diag_curve_title')">
                     
                   </div>
-                  <canvas id="calibration-chart" height="280"></canvas>
+                  <div style="position: relative; height: 280px;">
+                    <canvas id="calibration-chart"></canvas>
+                  </div>
                   <p class="text-[11px] text-slate-400 mt-2" x-text="$t('diag_curve_legend')">
                     
                   </p>
@@ -1529,7 +1533,9 @@
                 <!-- Bankroll chart -->
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
                   <div class="text-xs text-slate-500 font-semibold mb-3" x-text="$t('roi_bankroll_curve')"></div>
-                  <canvas id="roi-chart" height="240"></canvas>
+                  <div style="position: relative; height: 240px;">
+                    <canvas id="roi-chart"></canvas>
+                  </div>
                   <p class="text-[11px] text-slate-400 mt-2">
                     <span x-text="$t('roi_red_zone_a')"></span> (<span x-text="roiResult.summary.starting_bankroll.toFixed(0)"></span>) <span x-text="$t('roi_red_zone_b')"></span>
                   </p>
