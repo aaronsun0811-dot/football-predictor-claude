@@ -353,6 +353,20 @@ const I18N = {
     diag_ladder_th_pred: "平均预测",
     diag_ladder_th_bias: "偏差",
     diag_ladder_note: "红色行 = 高信心档过信（应该慎下注）。绿色行 = 模型反而保守，可挖 value。",
+    diag_run_ablation: "运行 ablation",
+    diag_ablation_running: "ablation 中… 2-3 分钟",
+    diag_ablation_need_league: "需要先选定一个联赛(ablation 不支持全联赛)。",
+    ablation_panel_h: "特征贡献度 (ablation)",
+    ablation_league_prefix: "联赛:",
+    ablation_intro: "把同一份回测用 4 种配置跑:全开、关 Elo、关 xG、两者都关。Δ 列显示该特征对模型质量的真实贡献。",
+    ablation_th_config: "配置",
+    ablation_th_acc: "准确率",
+    ablation_th_brier: "Brier",
+    ablation_th_logloss: "Log loss",
+    ablation_th_ece: "ECE",
+    ablation_th_delta_acc: "Δ 准确率",
+    ablation_th_delta_ece: "Δ ECE",
+    ablation_legend: "绿 = 该配置比全开更准/更校准。红 = 更差。如果某行 Δ 全 0,可能数据没真正灌进来(看上方 silent_features 提示)。",
     value_odds_heading: "盘口赔率（十进制）",
     value_home_short: "主胜",
     value_away_short: "客胜",
@@ -869,6 +883,20 @@ const I18N = {
     diag_ladder_th_pred: "Mean predicted",
     diag_ladder_th_bias: "Bias",
     diag_ladder_note: "Red row = high-confidence band over-confident (bet cautiously). Green row = model is conservative; value-bet candidate.",
+    diag_run_ablation: "Run ablation",
+    diag_ablation_running: "Ablation… 2–3 minutes",
+    diag_ablation_need_league: "Pick a specific league first (ablation doesn't support all-leagues).",
+    ablation_panel_h: "Feature contribution (ablation)",
+    ablation_league_prefix: "league:",
+    ablation_intro: "Re-runs the same backtest under 4 configs: full, no Elo, no xG, neither. The Δ columns show each feature's real contribution to model quality.",
+    ablation_th_config: "Config",
+    ablation_th_acc: "Accuracy",
+    ablation_th_brier: "Brier",
+    ablation_th_logloss: "Log loss",
+    ablation_th_ece: "ECE",
+    ablation_th_delta_acc: "Δ Accuracy",
+    ablation_th_delta_ece: "Δ ECE",
+    ablation_legend: "Green = config beats full on this metric. Red = worse. If a row's Δ is all zero, the feature may not actually be plumbed in — check the silent_features warning above.",
     value_odds_heading: "Bookmaker odds (decimal)",
     value_home_short: "Home",
     value_away_short: "Away",
@@ -1079,8 +1107,8 @@ function app() {
       model: "dixon_coles_elo",
     },
     result: null,
-    loading: { predict: false, wc: false, recent: false, backtest: false, diag: false, value: false, roi: false, continental: false, inplay: false, strengths: false, replay: false, replayHistory: false, replaySurprises: false, upcoming: false, dataHealth: false },
-    error: { predict: "", wc: "", recent: "", backtest: "", diag: "", value: "", roi: "", continental: "", inplay: "", strengths: "", replay: "", upcoming: "", dataHealth: "" },
+    loading: { predict: false, wc: false, recent: false, backtest: false, diag: false, ablation: false, value: false, roi: false, continental: false, inplay: false, strengths: false, replay: false, replayHistory: false, replaySurprises: false, upcoming: false, dataHealth: false },
+    error: { predict: "", wc: "", recent: "", backtest: "", diag: "", ablation: "", value: "", roi: "", continental: "", inplay: "", strengths: "", replay: "", upcoming: "", dataHealth: "" },
 
     // Data health dashboard
     healthResult: null,
@@ -1123,6 +1151,8 @@ function app() {
     diagForm: { league: "premier_league", min_train_matches: 200, refit_every: 50 },
     diagResult: null,
     calibrationChart: null,
+    // Ablation (runs the same backtest with Elo/xG selectively disabled)
+    ablationResult: null,
 
     // Value finder
     valueForm: { league: "", home_team: "", away_team: "", odds_home: null, odds_draw: null, odds_away: null },
@@ -1824,6 +1854,35 @@ function app() {
         this.error.diag = String(e.message || e);
       } finally {
         this.loading.diag = false;
+      }
+    },
+
+    async runAblation() {
+      // Hits /diagnostics/ablation. Same form fields as regular diagnostics, but
+      // requires a specific league (cross-league would take 30+ minutes). 4x
+      // slower than regular diagnostics since it runs the backtest four times.
+      this.error.ablation = "";
+      this.ablationResult = null;
+      this.loading.ablation = true;
+      try {
+        const r = await fetch("/diagnostics/ablation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            league: this.diagForm.league,
+            min_train_matches: this.diagForm.min_train_matches,
+            refit_every: this.diagForm.refit_every,
+          }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({ detail: r.statusText }));
+          throw new Error(err.detail || r.statusText);
+        }
+        this.ablationResult = await r.json();
+      } catch (e) {
+        this.error.ablation = String(e.message || e);
+      } finally {
+        this.loading.ablation = false;
       }
     },
 

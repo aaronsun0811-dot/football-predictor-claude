@@ -1110,7 +1110,14 @@
                 <span x-show="!loading.diag" x-text="$t('diag_run')"></span>
                 <span x-show="loading.diag" x-text="$t('wc_computing')"></span>
               </button>
+              <button @click="runAblation()" :disabled="loading.ablation || !diagForm.league"
+                      class="w-full bg-white border border-slate-300 text-slate-700 rounded-lg py-2 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 mt-2">
+                <span x-show="!loading.ablation" x-text="$t('diag_run_ablation')"></span>
+                <span x-show="loading.ablation" x-text="$t('diag_ablation_running')"></span>
+              </button>
+              <p class="text-[11px] text-slate-400" x-show="!diagForm.league" x-text="$t('diag_ablation_need_league')"></p>
               <p class="text-rose-600 text-xs" x-show="error.diag" x-text="error.diag"></p>
+              <p class="text-rose-600 text-xs" x-show="error.ablation" x-text="error.ablation"></p>
             </div>
           </div>
 
@@ -1183,11 +1190,70 @@
                     </tbody>
                   </table>
                   <p class="text-[11px] text-slate-400 mt-3" x-text="$t('diag_ladder_note')">
-                    
+
                   </p>
                 </div>
               </div>
             </template>
+          </div>
+        </div>
+
+        <!-- ===== ABLATION PANEL ===== -->
+        <div class="mt-6" x-show="ablationResult">
+          <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+            <div class="flex items-baseline justify-between mb-2">
+              <h3 class="font-semibold text-slate-800 text-sm" x-text="$t('ablation_panel_h')"></h3>
+              <span class="text-xs text-slate-400" x-show="ablationResult"
+                    x-text="$t('ablation_league_prefix') + ' ' + (ablationResult?.league || '')"></span>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-3" x-text="$t('ablation_intro')"></p>
+
+            <!-- Silent-feature warning chips -->
+            <template x-if="ablationResult?.silent_features?.length">
+              <div class="space-y-1.5 mb-3">
+                <template x-for="sf in ablationResult.silent_features" :key="sf.feature">
+                  <div class="rounded-lg border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900">
+                    <span class="font-semibold uppercase mr-1.5" x-text="sf.feature"></span>
+                    <span x-text="sf.explanation"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- Metrics table -->
+            <div class="overflow-x-auto">
+              <table class="text-xs w-full tabular-nums">
+                <thead class="text-slate-500">
+                  <tr class="border-b border-slate-200">
+                    <th class="text-left py-1.5 pr-2" x-text="$t('ablation_th_config')"></th>
+                    <th class="text-right py-1.5 px-1.5" x-text="$t('ablation_th_acc')"></th>
+                    <th class="text-right py-1.5 px-1.5" x-text="$t('ablation_th_brier')"></th>
+                    <th class="text-right py-1.5 px-1.5" x-text="$t('ablation_th_logloss')"></th>
+                    <th class="text-right py-1.5 px-1.5" x-text="$t('ablation_th_ece')"></th>
+                    <th class="text-right py-1.5 px-1.5" x-text="$t('ablation_th_delta_acc')"></th>
+                    <th class="text-right py-1.5 px-1.5" x-text="$t('ablation_th_delta_ece')"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="cfg in ablationResult.configurations" :key="cfg.config">
+                    <tr class="border-b border-slate-100">
+                      <td class="py-1.5 pr-2 font-mono text-[11px] text-slate-700" x-text="cfg.config"></td>
+                      <td class="text-right px-1.5" x-text="(cfg.metrics.accuracy*100).toFixed(2) + '%'"></td>
+                      <td class="text-right px-1.5" x-text="cfg.metrics.brier_score?.toFixed(4) ?? '—'"></td>
+                      <td class="text-right px-1.5" x-text="cfg.metrics.log_loss?.toFixed(4) ?? '—'"></td>
+                      <td class="text-right px-1.5" x-text="cfg.metrics.ece_mean?.toFixed(4) ?? '—'"></td>
+                      <td class="text-right px-1.5"
+                          :class="cfg.delta_vs_full?.accuracy_pp == null ? 'text-slate-300' : (cfg.delta_vs_full.accuracy_pp > 0 ? 'text-emerald-700' : (cfg.delta_vs_full.accuracy_pp < 0 ? 'text-rose-700' : 'text-slate-500'))"
+                          x-text="cfg.delta_vs_full?.accuracy_pp == null ? '—' : ((cfg.delta_vs_full.accuracy_pp > 0 ? '+' : '') + cfg.delta_vs_full.accuracy_pp.toFixed(2) + 'pp')"></td>
+                      <td class="text-right px-1.5"
+                          :class="cfg.delta_vs_full?.ece_mean == null ? 'text-slate-300' : (cfg.delta_vs_full.ece_mean > 0 ? 'text-rose-700' : (cfg.delta_vs_full.ece_mean < 0 ? 'text-emerald-700' : 'text-slate-500'))"
+                          x-text="cfg.delta_vs_full?.ece_mean == null ? '—' : ((cfg.delta_vs_full.ece_mean > 0 ? '+' : '') + cfg.delta_vs_full.ece_mean.toFixed(5))"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-2" x-text="$t('ablation_legend')"></p>
           </div>
         </div>
       </section>
