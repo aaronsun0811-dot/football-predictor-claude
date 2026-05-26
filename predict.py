@@ -166,6 +166,12 @@ class BacktestRequest(BaseModel):
     # Default 0.10 matches DixonColesConfig. The /diagnostics/ablation endpoint
     # sets this to 0 to measure how much Elo contributes to model quality.
     elo_weight: float = Field(0.10, ge=0.0, le=1.0)
+    # Which Dixon-Coles flavor to use. "mle" is the production default
+    # (matches all historical results). "bayesian" enables the hierarchical
+    # Bayesian variant; significantly slower (~30x per refit) but produces
+    # better-calibrated probabilities. Bayesian ignores elo_weight and
+    # xg_blend_weight — see models/dixon_coles_bayes.py for scope notes.
+    model_choice: str = Field("mle", pattern="^(mle|bayesian)$")
     summary_only: bool = Field(
         False,
         description="If true, drop the per-match predictions array from the response.",
@@ -1682,17 +1688,20 @@ def backtest_payload(payload: BacktestRequest) -> dict[str, Any]:
     )
     if matches.empty:
         raise ValueError("No matches found for backtest. Run `python predict.py update` first.")
-    result = backtest_dixon_coles(
-        matches,
-        config=BacktestConfig(
-            min_train_matches=payload.min_train_matches,
-            max_goals=payload.max_goals,
-            refit_every=payload.refit_every,
-            xg_blend_weight=payload.xg_blend_weight,
-            elo_weight=payload.elo_weight,
-        ),
+    bt_config = BacktestConfig(
+        min_train_matches=payload.min_train_matches,
+        max_goals=payload.max_goals,
+        refit_every=payload.refit_every,
+        xg_blend_weight=payload.xg_blend_weight,
+        elo_weight=payload.elo_weight,
     )
+    if payload.model_choice == "bayesian":
+        from models.backtest import backtest_bayesian_dc  # noqa: PLC0415
+        result = backtest_bayesian_dc(matches, config=bt_config)
+    else:
+        result = backtest_dixon_coles(matches, config=bt_config)
     response = result.to_dict()
+    response.setdefault("summary", {})["model_choice"] = payload.model_choice
     if payload.summary_only:
         response.pop("predictions", None)
     return response

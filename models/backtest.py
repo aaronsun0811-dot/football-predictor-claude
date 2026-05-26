@@ -196,6 +196,149 @@ def backtest_dixon_coles(
     return BacktestResult(summary=summary, predictions=predictions)
 
 
+def backtest_bayesian_dc(
+    matches: pd.DataFrame | Sequence[Mapping[str, Any]],
+    *,
+    config: BacktestConfig | None = None,
+) -> BacktestResult:
+    """Walk-forward backtest using the hierarchical Bayesian DC.
+
+    Output schema matches ``backtest_dixon_coles`` exactly so downstream
+    metric code (summarize_predictions, fit-health, per-league rollup)
+    doesn't care which model produced the predictions. Differences vs MLE:
+
+      - No Elo signal. The Bayesian model is a pure team-attack/defense
+        hierarchical fit; Elo isn't in scope for this first iteration.
+        ``home_elo`` / ``away_elo`` columns get filled with None.
+      - No xG blending. Same reason.
+      - No fit retries on transient failures (NUTS has its own
+        convergence handling). Skipped/failed-fit counts reflect that.
+      - ``model_age_matches`` is still tracked the same way as MLE so
+        the staleness rollup keeps working.
+
+    Cost: ~30x slower per refit than MLE. Use a larger ``refit_every``
+    (50+) for full-league backtests to keep total wall time tractable.
+    """
+    from models.dixon_coles_bayes import (  # noqa: PLC0415 — lazy import
+        BayesianDCConfig,
+        DixonColesBayesianModel,
+    )
+
+    config = config or BacktestConfig()
+    frame = _prepare_matches(matches)
+    if len(frame) <= config.min_train_matches:
+        raise ValueError(
+            f"Need more than {config.min_train_matches} matches for backtest; got {len(frame)}."
+        )
+
+    bayes_cfg = BayesianDCConfig(
+        n_tune=1000, n_draws=1000, chains=2,
+        progressbar=False,
+    )
+
+    rows: list[dict[str, Any]] = []
+    model: DixonColesBayesianModel | None = None
+    last_fit_index = -1
+
+    skipped_refits = 0
+    refit_attempts = 0
+    failed_refit_log: list[dict[str, Any]] = []
+
+    for idx in range(config.min_train_matches, len(frame)):
+        attempted_fit_here = False
+        fit_failed_here = False
+        if model is None or idx - last_fit_index >= config.refit_every:
+            attempted_fit_here = True
+            refit_attempts += 1
+            train = frame.iloc[:idx].copy()
+            try:
+                model = DixonColesBayesianModel(bayes_cfg).fit(train)
+                last_fit_index = idx
+            except Exception as exc:  # noqa: BLE001
+                skipped_refits += 1
+                fit_failed_here = True
+                if len(failed_refit_log) < 50:
+                    failed_refit_log.append({
+                        "match_index": idx,
+                        "as_of": str(frame.iloc[idx - 1]["date"].date()
+                                     if hasattr(frame.iloc[idx - 1]["date"], "date")
+                                     else frame.iloc[idx - 1]["date"]),
+                        "train_size": idx,
+                        "error": str(exc)[:120],
+                    })
+                if model is None:
+                    raise
+
+        target = frame.iloc[idx]
+        model_age_matches = idx - last_fit_index
+        pred = model.predict_match(
+            str(target["home_team"]),
+            str(target["away_team"]),
+            max_goals=config.max_goals,
+        )
+        if pred is None:
+            # Unseen team — Bayesian can't predict it. Skip this row entirely,
+            # mirroring how MLE backtest just wouldn't produce a row.
+            continue
+
+        actual_hg, actual_ag = int(target["home_goals"]), int(target["away_goals"])
+        actual = _actual_outcome(actual_hg, actual_ag)
+        probs = {
+            "home_win": pred["home_win"],
+            "draw": pred["draw"],
+            "away_win": pred["away_win"],
+        }
+        predicted = max(OUTCOMES, key=lambda o: probs[o])
+
+        # Score matrix from Bayesian → most-likely scoreline (mirrors MLE shape).
+        score_matrix = pred["score_matrix"]
+        flat_idx = int(score_matrix.argmax())
+        pred_hg, pred_ag = divmod(flat_idx, score_matrix.shape[1])
+        predicted_score = f"{pred_hg}-{pred_ag}"
+        predicted_score_prob = float(score_matrix[pred_hg, pred_ag])
+        exact_score_correct = (pred_hg == actual_hg and pred_ag == actual_ag)
+        goal_distance = abs(pred_hg - actual_hg) + abs(pred_ag - actual_ag)
+
+        rows.append({
+            "date": target["date"].date() if hasattr(target["date"], "date") else target["date"],
+            "league_key": target.get("league_key"),
+            "home_team": target["home_team"],
+            "away_team": target["away_team"],
+            "home_goals": actual_hg,
+            "away_goals": actual_ag,
+            "actual": actual,
+            "predicted": predicted,
+            "correct": predicted == actual,
+            "home_win": pred["home_win"],
+            "draw": pred["draw"],
+            "away_win": pred["away_win"],
+            "expected_home_goals": pred["expected_home_goals"],
+            "expected_away_goals": pred["expected_away_goals"],
+            # Bayesian doesn't currently track per-match xG sample count
+            "xg_training_rows": None,
+            "model_age_matches": int(model_age_matches),
+            "fit_attempted_here": bool(attempted_fit_here),
+            "fit_failed_here": bool(fit_failed_here),
+            "predicted_score": predicted_score,
+            "predicted_score_prob": predicted_score_prob,
+            "exact_score_correct": exact_score_correct,
+            "goal_distance": goal_distance,
+        })
+
+    predictions = pd.DataFrame(rows)
+    summary = summarize_predictions(predictions)
+    summary["n_train_min"] = config.min_train_matches
+    summary["n_matches_total"] = len(frame)
+    summary["model"] = "dixon_coles_bayes"
+    summary["fit_health"] = _summarize_fit_health(
+        predictions,
+        refit_attempts=refit_attempts,
+        skipped_refits=skipped_refits,
+        failed_refit_log=failed_refit_log,
+    )
+    return BacktestResult(summary=summary, predictions=predictions)
+
+
 def _summarize_fit_health(
     predictions: pd.DataFrame,
     *,
