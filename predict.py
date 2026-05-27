@@ -127,7 +127,12 @@ class ROIRequest(BaseModel):
     include_bets: bool = Field(False, description="Include the per-bet array in the response.")
     model: str = Field(
         "dixon_coles_elo",
-        description="Goal model. dixon_coles_elo (default), or penaltyblog: dixon_coles, bivariate_poisson, poisson.",
+        description=(
+            "Goal model. dixon_coles_elo (default, MLE + Elo) | "
+            "bayesian (hierarchical Bayesian DC, slower but better-calibrated) | "
+            "ensemble | market_fused | "
+            "penaltyblog family: dixon_coles, bivariate_poisson, poisson"
+        ),
     )
     implied_method: str = Field(
         "shin",

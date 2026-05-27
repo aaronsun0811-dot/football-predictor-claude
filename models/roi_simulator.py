@@ -58,9 +58,17 @@ class ROIConfig:
     # the naive sum-to-1 normalization. The choice subtly shifts the
     # implied probabilities and therefore the value finder's "edge".
     implied_method: str = "shin"
-    # Goal model: "dixon_coles_elo" is our Elo-blended Dixon-Coles (default,
-    # over-confident on big Elo gaps), or any penaltyblog model name:
-    # "dixon_coles" / "bivariate_poisson" / "poisson" / "negative_binomial".
+    # Goal model. Options:
+    #   "dixon_coles_elo": Elo-blended MLE Dixon-Coles (default, accurate
+    #                      but over-confident on large Elo gaps).
+    #   "bayesian":        Hierarchical Bayesian Dixon-Coles. Slower
+    #                      (~30x per refit) but better-calibrated. Does
+    #                      NOT currently use Elo or xG; pure team-level
+    #                      shrinkage. See models/dixon_coles_bayes.py.
+    #   penaltyblog family: "dixon_coles", "bivariate_poisson", "poisson",
+    #                       "negative_binomial", "zero_inflated_poisson"
+    #   ensemble: "ensemble" (3-model avg), "market_fused" (blend with
+    #             bookmaker implied probs)
     model: str = "dixon_coles_elo"
 
 
@@ -120,6 +128,7 @@ def simulate_roi(
         "negative_binomial", "zero_inflated_poisson",
     }
     use_ensemble = config.model in {"ensemble", "market_fused"}
+    use_bayesian = config.model == "bayesian"
     market_fusion_weight = 0.5 if config.model == "market_fused" else 0.0
 
     for idx in range(config.min_train_matches, len(frame)):
@@ -137,6 +146,16 @@ def simulate_roi(
                     )
                 elif use_penaltyblog:
                     model = _fit_penaltyblog(train, config.model)
+                elif use_bayesian:
+                    from models.dixon_coles_bayes import (  # noqa: PLC0415
+                        BayesianDCConfig,
+                        DixonColesBayesianModel,
+                    )
+                    bayes_cfg = BayesianDCConfig(
+                        n_tune=1000, n_draws=1000, chains=2,
+                        progressbar=False,
+                    )
+                    model = DixonColesBayesianModel(bayes_cfg).fit(train)
                 else:
                     model = DixonColesModel(
                         DixonColesConfig(
@@ -202,6 +221,21 @@ def simulate_roi(
                 }
             except (KeyError, ValueError):
                 continue
+        elif use_bayesian:
+            # Bayesian model.predict_match returns None for unseen teams.
+            # Mirror the penaltyblog "skip and continue" behavior.
+            pred = model.predict_match(
+                str(target["home_team"]),
+                str(target["away_team"]),
+                max_goals=config.max_goals,
+            )
+            if pred is None:
+                continue
+            probs = {
+                "home_win": float(pred["home_win"]),
+                "draw": float(pred["draw"]),
+                "away_win": float(pred["away_win"]),
+            }
         else:
             prediction = model.predict_match(
                 str(target["home_team"]),
