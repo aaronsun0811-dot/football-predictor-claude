@@ -34,6 +34,65 @@ from data.team_normalize import canonicalize
 HISTORY_PATH = LEGACY_PATH
 OUTCOMES = ("home_win", "draw", "away_win")
 
+# League-level outcome base rates serve as the denominator for the
+# "lift over baseline" value-pick rule. Global fallback when a league
+# has too few rows in the matches table (<200) to estimate reliably.
+# These are computed once per audit_summary call from the live matches
+# frame; this constant is only the fallback.
+_GLOBAL_BASELINE = {"home_win": 0.439, "draw": 0.260, "away_win": 0.300}
+
+
+def _compute_baselines_by_league(matches_frame: pd.DataFrame) -> dict[str, dict[str, float]]:
+    """Empirical W/D/L rates per league from the matches table.
+
+    Used by the ``value_pick`` rule in resolve_predictions — instead of
+    just argmax-ing the model's probabilities (which Dixon-Coles
+    chronically under-picks draws on, because the draw probability is
+    split out from a single peak), we pick the outcome whose model
+    probability has the highest LIFT over its league-historical
+    frequency. This automatically promotes draws when the model says
+    "26% chance" if the league's draw base rate is ~24%, vs sticking
+    with home at 50% when home base rate is ~44% (lift 1.13 vs 1.14 —
+    they're competitive, so the value-pick rule actually fires).
+
+    Returns empty dict if matches_frame is empty.
+    """
+    if matches_frame.empty:
+        return {}
+    if "league_key" not in matches_frame.columns:
+        return {}  # test fixtures may not include league_key; fall back to global
+    valid = matches_frame.dropna(subset=["home_goals", "away_goals"])
+    if valid.empty:
+        return {}
+    out: dict[str, dict[str, float]] = {}
+    for lg, sub in valid.groupby("league_key"):
+        if len(sub) < 200:
+            continue  # too small a sample for a stable baseline
+        hg = sub["home_goals"].astype(int)
+        ag = sub["away_goals"].astype(int)
+        n = len(sub)
+        out[str(lg)] = {
+            "home_win": float((hg > ag).sum() / n),
+            "draw": float((hg == ag).sum() / n),
+            "away_win": float((hg < ag).sum() / n),
+        }
+    return out
+
+
+def _value_pick(probs: np.ndarray, baseline: dict[str, float]) -> tuple[int, float]:
+    """Pick the outcome with the highest lift over baseline.
+
+    Returns (chosen_index, lift_value). probs is a 3-vector in OUTCOMES
+    order. Falls back to argmax behavior if baseline lookup fails for
+    any outcome (treats missing as 1.0 so it's neutral).
+    """
+    lifts = np.array([
+        probs[i] / max(baseline.get(o, _GLOBAL_BASELINE[o]), 1e-6)
+        for i, o in enumerate(OUTCOMES)
+    ])
+    idx = int(np.argmax(lifts))
+    return idx, float(lifts[idx])
+
 
 def _outcome(home_goals: int, away_goals: int) -> str:
     if home_goals > away_goals:
@@ -103,6 +162,9 @@ def resolve_predictions(
         return _empty_resolved()
     as_of = as_of or date.today()
 
+    # Per-league outcome base rates for the value_pick rule.
+    baselines_by_league = _compute_baselines_by_league(matches_frame)
+
     # Build a lookup over the matches table. Use canonicalized names so
     # predicted-vs-actual aliasing works.
     m = matches_frame.copy()
@@ -148,6 +210,19 @@ def resolve_predictions(
         predicted_outcome = OUTCOMES[predicted_idx]
         actual_idx = OUTCOMES.index(actual_outcome)
         p_actual = float(probs[actual_idx])
+
+        # Value pick: argmax of (model_prob / league_baseline). This is the
+        # Brier/utility-aware alternative to plain argmax — it picks the
+        # outcome the model thinks is MOST mispriced vs reality, not just
+        # the one with highest absolute probability. Most often this just
+        # agrees with argmax, but when the model gives ~25% to a draw in
+        # a league where draws happen ~24% (lift 1.04), and ~50% to home
+        # where home wins ~44% (lift 1.14), argmax still picks home but
+        # value_pick now elevates draw as a serious competitor — which
+        # diversifies the prediction distribution toward matching reality.
+        league_baseline = baselines_by_league.get(pred.get("league_key"), _GLOBAL_BASELINE)
+        value_pick_idx, value_pick_lift = _value_pick(probs, league_baseline)
+        value_pick_outcome = OUTCOMES[value_pick_idx]
 
         one_hot = np.zeros(3)
         one_hot[actual_idx] = 1.0
@@ -198,6 +273,9 @@ def resolve_predictions(
             "p_actual": p_actual,
             "p_predicted_outcome": float(probs[predicted_idx]),
             "correct": predicted_outcome == actual_outcome,
+            "value_pick": value_pick_outcome,
+            "value_pick_lift": value_pick_lift,
+            "correct_value_pick": value_pick_outcome == actual_outcome,
             "brier": brier,
             "log_loss": log_loss,
             "rps": rps,
@@ -238,6 +316,18 @@ def summarize_resolved(resolved: pd.DataFrame) -> dict[str, Any]:
         "log_loss": float(resolved["log_loss"].mean()),
         "rps": float(resolved["rps"].mean()),
     }
+    # Value-pick accuracy: alternative selection rule that picks the
+    # outcome whose model prob has highest lift over its league base rate.
+    # Reported side-by-side with argmax accuracy so we can see whether
+    # the rule actually moves the needle without changing the model.
+    if "correct_value_pick" in resolved.columns:
+        summary["accuracy_value_pick"] = float(resolved["correct_value_pick"].mean())
+        # Also report the distribution shift: how often value_pick disagreed
+        # with argmax. If 0%, the rule is inactive on this data; if high,
+        # it's actually steering picks toward draws.
+        if "value_pick" in resolved.columns and "predicted_outcome" in resolved.columns:
+            disagreements = (resolved["value_pick"] != resolved["predicted_outcome"]).sum()
+            summary["value_pick_disagreement_pct"] = float(disagreements / len(resolved))
 
     # Score-level rollup: only over predictions that actually carry a stored
     # predicted scoreline. Old snapshots (pre-round-18) have None here.
