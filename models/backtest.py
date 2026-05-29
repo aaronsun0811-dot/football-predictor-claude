@@ -231,9 +231,15 @@ def backtest_bayesian_dc(
             f"Need more than {config.min_train_matches} matches for backtest; got {len(frame)}."
         )
 
+    # Attach pre-match Elo so the Bayesian model can use it as a learned
+    # covariate (same Elo source the MLE backtest uses). elo_weight on the
+    # BacktestConfig toggles it: 0 disables Elo for a clean ablation.
+    frame = attach_pre_match_elos(frame)
+
     bayes_cfg = BayesianDCConfig(
         n_tune=1000, n_draws=1000, chains=2,
         progressbar=False,
+        use_elo=config.elo_weight > 0,
     )
 
     rows: list[dict[str, Any]] = []
@@ -271,9 +277,14 @@ def backtest_bayesian_dc(
 
         target = frame.iloc[idx]
         model_age_matches = idx - last_fit_index
+        # Pass Elo if available — the model only uses it if fitted with Elo on.
+        home_elo = target.get("home_elo")
+        away_elo = target.get("away_elo")
         pred = model.predict_match(
             str(target["home_team"]),
             str(target["away_team"]),
+            home_elo=float(home_elo) if home_elo is not None and not pd.isna(home_elo) else None,
+            away_elo=float(away_elo) if away_elo is not None and not pd.isna(away_elo) else None,
             max_goals=config.max_goals,
         )
         if pred is None:

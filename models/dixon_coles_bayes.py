@@ -81,6 +81,27 @@ class BayesianDCConfig:
     intercept_mu: float = 0.0
     intercept_sigma: float = 1.0
 
+    # Elo integration. When True AND the training frame has home_elo/away_elo
+    # columns, the model adds an Elo term to the log-rate whose COEFFICIENT
+    # is LEARNED (Normal prior), not fixed like the MLE version's
+    # elo_weight=0.10. This is the Bayesian advantage: the data decides how
+    # much to trust Elo. elo_coef_mu/sigma is the prior on that coefficient;
+    # the Elo difference is normalized by elo_scale (400 = standard Elo
+    # decade) before entering the linear predictor.
+    use_elo: bool = True
+    elo_coef_mu: float = 0.0
+    elo_coef_sigma: float = 0.5
+    elo_scale: float = 400.0
+
+    # xG integration. When True AND the training frame has home_xg/away_xg,
+    # each match with xG present adds a second (Normal) likelihood: xG is
+    # treated as a noisy observation of the same latent scoring rate. This
+    # lets continuous xG inform the rate WITHOUT rounding it to integer
+    # goals (the MLE version blends xG into fake integer goals — lossy).
+    # Matches without xG simply don't contribute this extra likelihood.
+    use_xg: bool = True
+    xg_obs_sigma: float = 0.75
+
     # NUTS sampler config. 1000 tune + 1000 draws is the PyMC default
     # and works for this small problem.
     n_tune: int = 1000
@@ -152,6 +173,41 @@ class DixonColesBayesianModel:
         away_goals = df["away_goals"].values
 
         cfg = self.config
+
+        # Elo: only if enabled AND columns present AND non-degenerate.
+        use_elo = (
+            cfg.use_elo
+            and "home_elo" in df.columns
+            and "away_elo" in df.columns
+            and df["home_elo"].notna().any()
+        )
+        if use_elo:
+            # Normalized Elo difference (home − away) / scale. Fill missing
+            # with 0 (= no signal for that match).
+            elo_diff = (
+                (df["home_elo"].fillna(df["home_elo"].median())
+                 - df["away_elo"].fillna(df["away_elo"].median()))
+                / cfg.elo_scale
+            ).values.astype(float)
+        else:
+            elo_diff = None
+
+        # xG: only the rows where both home_xg and away_xg are present
+        # contribute the extra Normal likelihood.
+        use_xg = (
+            cfg.use_xg
+            and "home_xg" in df.columns
+            and "away_xg" in df.columns
+            and df["home_xg"].notna().any()
+        )
+        if use_xg:
+            xg_mask = df["home_xg"].notna() & df["away_xg"].notna()
+            xg_rows = np.where(xg_mask.values)[0]
+            home_xg = df["home_xg"].values[xg_rows].astype(float)
+            away_xg = df["away_xg"].values[xg_rows].astype(float)
+        else:
+            xg_rows = np.array([], dtype=int)
+
         with pm.Model():
             # League-level hyperpriors. HalfNormal because sigma must be > 0.
             sigma_attack = pm.HalfNormal("sigma_attack", sigma=cfg.sigma_attack_scale)
@@ -173,16 +229,51 @@ class DixonColesBayesianModel:
                 "intercept", mu=cfg.intercept_mu, sigma=cfg.intercept_sigma
             )
 
+            # Elo coefficient: LEARNED, not fixed. The whole Bayesian
+            # advantage — data decides how much to trust the Elo signal.
+            if use_elo:
+                elo_coef = pm.Normal(
+                    "elo_coef", mu=cfg.elo_coef_mu, sigma=cfg.elo_coef_sigma
+                )
+                elo_term_home = elo_coef * elo_diff
+                elo_term_away = -elo_coef * elo_diff
+            else:
+                elo_term_home = 0.0
+                elo_term_away = 0.0
+
             # Linear predictors on log scale.
             log_lambda_home = (
-                intercept + home_advantage + attack[home_idx] - defense[away_idx]
+                intercept + home_advantage
+                + attack[home_idx] - defense[away_idx]
+                + elo_term_home
             )
-            log_lambda_away = intercept + attack[away_idx] - defense[home_idx]
+            log_lambda_away = (
+                intercept + attack[away_idx] - defense[home_idx]
+                + elo_term_away
+            )
+            lambda_home = pm.math.exp(log_lambda_home)
+            lambda_away = pm.math.exp(log_lambda_away)
 
-            # Independent Poisson likelihoods. (Adding the Dixon-Coles
-            # τ low-score correction is deferred to a follow-up.)
-            pm.Poisson("home_obs", mu=pm.math.exp(log_lambda_home), observed=home_goals)
-            pm.Poisson("away_obs", mu=pm.math.exp(log_lambda_away), observed=away_goals)
+            # Primary Poisson likelihoods on actual goals.
+            pm.Poisson("home_obs", mu=lambda_home, observed=home_goals)
+            pm.Poisson("away_obs", mu=lambda_away, observed=away_goals)
+
+            # xG as a second, NOISY observation of the same latent rate.
+            # Normal(rate, sigma) — continuous, no integer rounding. Only
+            # the subset of matches with xG present contributes.
+            if use_xg and len(xg_rows) > 0:
+                pm.Normal(
+                    "home_xg_obs",
+                    mu=lambda_home[xg_rows],
+                    sigma=cfg.xg_obs_sigma,
+                    observed=home_xg,
+                )
+                pm.Normal(
+                    "away_xg_obs",
+                    mu=lambda_away[xg_rows],
+                    sigma=cfg.xg_obs_sigma,
+                    observed=away_xg,
+                )
 
             self.trace = pm.sample(
                 draws=cfg.n_draws,
@@ -203,6 +294,11 @@ class DixonColesBayesianModel:
             "intercept": float(post["intercept"].mean()),
             "sigma_attack": float(post["sigma_attack"].mean()),
             "sigma_defense": float(post["sigma_defense"].mean()),
+            "elo_coef": float(post["elo_coef"].mean()) if use_elo else 0.0,
+            "uses_elo": bool(use_elo),
+            "uses_xg": bool(use_xg),
+            "n_xg_matches": int(len(xg_rows)),
+            "elo_scale": cfg.elo_scale,
             "n_teams": n_teams,
             "n_matches": int(len(df)),
         }
@@ -213,9 +309,15 @@ class DixonColesBayesianModel:
         home_team: str,
         away_team: str,
         *,
+        home_elo: float | None = None,
+        away_elo: float | None = None,
         max_goals: int = 8,
     ) -> Mapping[str, Any] | None:
         """Predict score matrix + outcome probabilities.
+
+        If the model was fitted with Elo enabled, pass home_elo/away_elo
+        to apply the learned Elo coefficient. Omitting them when the model
+        used Elo simply drops the Elo term for this prediction (neutral).
 
         Returns None if either team wasn't seen during training. Callers
         should fall back to the MLE model or to a metadata-only response
@@ -232,12 +334,21 @@ class DixonColesBayesianModel:
             return None
 
         p = self.posterior
+        # Elo term: only applies if the model learned an elo_coef AND both
+        # Elo values are supplied for this prediction.
+        elo_term = 0.0
+        if p.get("uses_elo") and home_elo is not None and away_elo is not None:
+            elo_diff = (float(home_elo) - float(away_elo)) / p.get("elo_scale", 400.0)
+            elo_term = p["elo_coef"] * elo_diff
+
         log_lambda_h = (
             p["intercept"] + p["home_advantage"]
             + p["attack"][h_idx] - p["defense"][a_idx]
+            + elo_term
         )
         log_lambda_a = (
             p["intercept"] + p["attack"][a_idx] - p["defense"][h_idx]
+            - elo_term
         )
         lambda_h = float(np.exp(log_lambda_h))
         lambda_a = float(np.exp(log_lambda_a))
